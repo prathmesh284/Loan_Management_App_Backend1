@@ -18,7 +18,15 @@ public class Users {
     private String password;
     private String phoneNumber;
     private String adharNumber;
-    private String dob;      // You can use LocalDate if you want type-safety
+    public Long getId() {
+		return id;
+	}
+
+	public void setId(Long id) {
+		this.id = id;
+	}
+
+	private String dob;      // You can use LocalDate if you want type-safety
     private String gender;
     private String branch;
 

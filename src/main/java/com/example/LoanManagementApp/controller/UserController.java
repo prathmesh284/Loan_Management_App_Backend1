@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.example.LoanManagementApp.DTO.LoginResponse;
 import com.example.LoanManagementApp.model.Users;
 import com.example.LoanManagementApp.service.UserService;
 
@@ -25,8 +27,9 @@ public class UserController {
         return ResponseEntity.ok(userService.register(user));
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody Users user) {
-        return ResponseEntity.ok(userService.login(user));
-    }
+	@PostMapping("/login")
+	public ResponseEntity<LoginResponse> login(@RequestBody Users user) {
+	    return ResponseEntity.ok(userService.login(user));
+	}
+
 }

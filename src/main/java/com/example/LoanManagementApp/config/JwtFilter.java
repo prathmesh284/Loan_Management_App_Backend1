@@ -29,27 +29,56 @@ public class JwtFilter extends OncePerRequestFilter{
 	ApplicationContext context;
 
 	@Override
-	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+	protected void doFilterInternal(HttpServletRequest request,
+									HttpServletResponse response,
+									FilterChain filterChain)
 			throws ServletException, IOException {
+
+		// ✅ 1. Skip OPTIONS (VERY IMPORTANT)
+		if (request.getMethod().equals("OPTIONS")) {
+			filterChain.doFilter(request, response);
+			return;
+		}
+
 		String authHeader = request.getHeader("Authorization");
 		String token = null;
 		String username = null;
-		
-		if(authHeader != null && authHeader.startsWith("Bearer ")) {
-			token = authHeader.substring(7);
-			username = jwtService.extractUserName(token);
-			
-		}
-		
-		if(username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-			UserDetails userDetails = context.getBean(MyUserDetailsService.class).loadUserByUsername(username);
-			if(jwtService.validateToken(token,userDetails)) {
-				UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails, null , userDetails.getAuthorities());
-				authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-				SecurityContextHolder.getContext().setAuthentication(authToken);
+
+		try {
+			// ✅ 2. Extract token safely
+			if (authHeader != null && authHeader.startsWith("Bearer ")) {
+				token = authHeader.substring(7);
+				username = jwtService.extractUserName(token);
 			}
+
+			// ✅ 3. Authenticate only if valid
+			if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+				UserDetails userDetails = context
+						.getBean(MyUserDetailsService.class)
+						.loadUserByUsername(username);
+
+				if (jwtService.validateToken(token, userDetails)) {
+					UsernamePasswordAuthenticationToken authToken =
+							new UsernamePasswordAuthenticationToken(
+									userDetails,
+									null,
+									userDetails.getAuthorities()
+							);
+
+					authToken.setDetails(
+							new WebAuthenticationDetailsSource().buildDetails(request)
+					);
+
+					SecurityContextHolder.getContext().setAuthentication(authToken);
+				}
+			}
+
+		} catch (Exception e) {
+			System.out.println("❌ JWT Error: " + e.getMessage());
+			// DON'T block request, just continue
 		}
+
 		filterChain.doFilter(request, response);
 	}
-	
 }

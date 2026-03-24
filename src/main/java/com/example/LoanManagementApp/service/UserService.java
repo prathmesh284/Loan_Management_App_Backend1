@@ -7,6 +7,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.example.LoanManagementApp.DTO.LoginResponse;
 import com.example.LoanManagementApp.model.Users;
 import com.example.LoanManagementApp.repo.UserRepo;
 
@@ -47,8 +48,8 @@ public class UserService {
     /**
      * 🔓 User Login Verification
      */
-    public String login(Users user) {
-        // Authenticate user using Spring Security
+    public LoginResponse login(Users user) {
+        // Authenticate
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         user.getUsername(),
@@ -56,13 +57,23 @@ public class UserService {
                 )
         );
 
-        // If authentication successful, generate JWT token
-        if (authentication.isAuthenticated()) {
-            return jwtService.generateToken(user.getUsername());
-        } else {
+        if (!authentication.isAuthenticated()) {
             throw new RuntimeException("Invalid username or password");
         }
+
+        // Fetch full user data from DB
+        Users dbUser = repo.findByUsername(user.getUsername());
+        if (dbUser == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        // Generate JWT
+        String token = jwtService.generateToken(user.getUsername());
+
+        // Return token + branchId
+        return new LoginResponse(token, dbUser.getId());
     }
+
 
     /**
      * 🧾 Get user details by username
