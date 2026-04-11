@@ -44,15 +44,19 @@ public class UserPrincipal implements UserDetails {
     }
 
     public String getDob() {
-        return user.getDob();
+        return user.getDob() != null ? user.getDob().toString() : null;
     }
 
     public String getGender() {
         return user.getGender();
     }
 
-    public String getBranch() {
-        return user.getBranch();
+    public String getBranchCode() {
+        return user.getBranch() != null ? user.getBranch().getBranchCode() : null;
+    }
+
+    public String getBranchName() {
+        return user.getBranch() != null ? user.getBranch().getBranchName() : null;
     }
 
     @Override

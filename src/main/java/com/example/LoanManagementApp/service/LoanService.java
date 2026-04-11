@@ -15,7 +15,7 @@ public class LoanService {
     private LoanRepo repo;
 
     public Loan createLoan(Loan loan) {
-    	int tenure = Integer.parseInt(loan.getTenure()); // months
+        int tenure = loan.getTenure(); // months - now Integer type
         loan.setTotalEmis(tenure);
         loan.setPaidEmis(0);
         loan.setRemainingEmis(tenure);
@@ -24,7 +24,7 @@ public class LoanService {
 
         // Next EMI date = 1 month from loanDate OR today if not provided
         LocalDate nextDate = LocalDate.now().plusMonths(1);
-        loan.setNextEmiDate(nextDate.toString());
+        loan.setNextEmiDate(nextDate);
         return repo.save(loan);
     }
 

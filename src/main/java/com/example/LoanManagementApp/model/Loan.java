@@ -1,41 +1,136 @@
 package com.example.LoanManagementApp.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
+import java.time.LocalDate;
+import java.util.List;
 
+/**
+ * Loan Entity - Represents gold loan applications
+ * Maintains relationships with Customer and EMI payments
+ */
 @Entity
 @Table(name = "loans")
 public class Loan {
+
+    // ==================== FIELDS ====================
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String customerName;
-    private String customerId;
-    private String phone;
-    private String address;
-    private String loanDate;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "customer_id", referencedColumnName = "customer_id", nullable = false)
+    @NotNull(message = "Customer cannot be null")
+    private Customer customer;
 
+    @NotBlank(message = "Gold type cannot be empty")
+    @Pattern(regexp = "^(22K|23K|24K)$", message = "Gold type must be 22K, 23K, or 24K")
+    @Column(nullable = false)
     private String goldType;
-    private String weight;
-    private String goldPrice;
-    private String ltv;
-    private String interestRate;
-    private String tenure;
 
-    private double loanAmount;
-    private double emi;
-    private double totalInterest;
-    private double totalAmount;
-    
-    private double paidAmount = 0.0;      // New
-    private double remainingAmount = 0.0; // New
-    private int totalEmis;                // New
-    private int paidEmis = 0;            // New
-    private int remainingEmis = 0;       // New
-    private String nextEmiDate;          // New
+    @NotNull(message = "Weight cannot be null")
+    @DecimalMin(value = "0.1", message = "Weight must be greater than 0")
+    @Column(nullable = false)
+    private Double weight;
 
-    // Getters & Setters
+    @NotNull(message = "Gold price cannot be null")
+    @DecimalMin(value = "1", message = "Gold price must be greater than 0")
+    @Column(nullable = false)
+    private Double goldPrice;
+
+    @NotNull(message = "LTV cannot be null")
+    @DecimalMin(value = "1", message = "LTV must be greater than 0")
+    @DecimalMax(value = "100", message = "LTV cannot exceed 100")
+    @Column(nullable = false)
+    private Double ltv;
+
+    @NotNull(message = "Interest rate cannot be null")
+    @DecimalMin(value = "0", message = "Interest rate cannot be negative")
+    @DecimalMax(value = "100", message = "Interest rate cannot exceed 100")
+    @Column(nullable = false)
+    private Double interestRate;
+
+    @NotNull(message = "Tenure cannot be null")
+    @Min(value = 1, message = "Tenure must be at least 1 month")
+    @Max(value = 84, message = "Tenure cannot exceed 84 months")
+    @Column(nullable = false)
+    private Integer tenure;
+
+    @NotNull(message = "Loan amount cannot be null")
+    @DecimalMin(value = "1000", message = "Loan amount must be at least 1000")
+    @Column(nullable = false)
+    private Double loanAmount;
+
+    @NotNull(message = "EMI cannot be null")
+    @DecimalMin(value = "0", message = "EMI cannot be negative")
+    @Column(nullable = false)
+    private Double emi;
+
+    @NotNull(message = "Total interest cannot be null")
+    @DecimalMin(value = "0", message = "Total interest cannot be negative")
+    @Column(nullable = false)
+    private Double totalInterest;
+
+    @NotNull(message = "Total amount cannot be null")
+    @DecimalMin(value = "0", message = "Total amount cannot be negative")
+    @Column(nullable = false)
+    private Double totalAmount;
+
+    @Column(nullable = false)
+    private Double paidAmount = 0.0;
+
+    @Column(nullable = false)
+    private Double remainingAmount = 0.0;
+
+    @Column(nullable = false)
+    private Integer totalEmis = 0;
+
+    @Column(nullable = false)
+    private Integer paidEmis = 0;
+
+    @Column(nullable = false)
+    private Integer remainingEmis = 0;
+
+    @Column(nullable = false)
+    private LocalDate loanDate = LocalDate.now();
+
+    @Column(name = "next_emi_date")
+    private LocalDate nextEmiDate;
+
+    @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Emi> emiPayments;
+
+    @NotNull(message = "Status cannot be null")
+    @Pattern(regexp = "^(ACTIVE|CLOSED|DEFAULTED)$", message = "Status must be ACTIVE, CLOSED, or DEFAULTED")
+    @Column(nullable = false)
+    private String status = "ACTIVE";
+
+    // ==================== CONSTRUCTORS ====================
+
+    public Loan() {}
+
+    public Loan(Customer customer, String goldType, Double weight, Double goldPrice,
+                Double ltv, Double interestRate, Integer tenure, Double loanAmount,
+                Double emi, Double totalInterest, Double totalAmount) {
+        this.customer = customer;
+        this.goldType = goldType;
+        this.weight = weight;
+        this.goldPrice = goldPrice;
+        this.ltv = ltv;
+        this.interestRate = interestRate;
+        this.tenure = tenure;
+        this.loanAmount = loanAmount;
+        this.emi = emi;
+        this.totalInterest = totalInterest;
+        this.totalAmount = totalAmount;
+        this.loanDate = LocalDate.now();
+        this.remainingAmount = loanAmount;
+        this.totalEmis = tenure;
+        this.remainingEmis = tenure;
+    }
+
+    // ==================== GETTERS & SETTERS ====================
 
     public Long getId() {
         return id;
@@ -45,157 +140,176 @@ public class Loan {
         this.id = id;
     }
 
-    public String getCustomerName() {
-        return customerName;
-    }
-    public void setCustomerName(String customerName) {
-        this.customerName = customerName;
+    public Customer getCustomer() {
+        return customer;
     }
 
-    public String getCustomerId() {
-        return customerId;
-    }
-    public void setCustomerId(String customerId) {
-        this.customerId = customerId;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
-    public String getAddress() {
-        return address;
-    }
-    public void setAddress(String address) {
-        this.address = address;
-    }
-
-    public String getLoanDate() {
-        return loanDate;
-    }
-    public void setLoanDate(String loanDate) {
-        this.loanDate = loanDate;
+    public void setCustomer(Customer customer) {
+        this.customer = customer;
     }
 
     public String getGoldType() {
         return goldType;
     }
+
     public void setGoldType(String goldType) {
         this.goldType = goldType;
     }
 
-    public String getWeight() {
+    public Double getWeight() {
         return weight;
     }
-    public void setWeight(String weight) {
+
+    public void setWeight(Double weight) {
         this.weight = weight;
     }
 
-    public String getGoldPrice() {
+    public Double getGoldPrice() {
         return goldPrice;
     }
-    public void setGoldPrice(String goldPrice) {
+
+    public void setGoldPrice(Double goldPrice) {
         this.goldPrice = goldPrice;
     }
 
-    public String getLtv() {
+    public Double getLtv() {
         return ltv;
     }
-    public void setLtv(String ltv) {
+
+    public void setLtv(Double ltv) {
         this.ltv = ltv;
     }
 
-    public String getInterestRate() {
+    public Double getInterestRate() {
         return interestRate;
     }
-    public void setInterestRate(String interestRate) {
+
+    public void setInterestRate(Double interestRate) {
         this.interestRate = interestRate;
     }
 
-    public String getTenure() {
+    public Integer getTenure() {
         return tenure;
     }
-    public void setTenure(String tenure) {
+
+    public void setTenure(Integer tenure) {
         this.tenure = tenure;
     }
 
-    public double getLoanAmount() {
+    public Double getLoanAmount() {
         return loanAmount;
     }
-    public void setLoanAmount(double loanAmount) {
+
+    public void setLoanAmount(Double loanAmount) {
         this.loanAmount = loanAmount;
     }
 
-    public double getEmi() {
+    public Double getEmi() {
         return emi;
     }
-    public void setEmi(double emi) {
+
+    public void setEmi(Double emi) {
         this.emi = emi;
     }
 
-    public double getTotalInterest() {
+    public Double getTotalInterest() {
         return totalInterest;
     }
-    public void setTotalInterest(double totalInterest) {
+
+    public void setTotalInterest(Double totalInterest) {
         this.totalInterest = totalInterest;
     }
 
-    public double getTotalAmount() {
+    public Double getTotalAmount() {
         return totalAmount;
     }
-    public void setTotalAmount(double totalAmount) {
+
+    public void setTotalAmount(Double totalAmount) {
         this.totalAmount = totalAmount;
     }
 
-	public double getPaidAmount() {
-		return paidAmount;
-	}
+    public Double getPaidAmount() {
+        return paidAmount;
+    }
 
-	public void setPaidAmount(double paidAmount) {
-		this.paidAmount = paidAmount;
-	}
+    public void setPaidAmount(Double paidAmount) {
+        this.paidAmount = paidAmount;
+    }
 
-	public double getRemainingAmount() {
-		return remainingAmount;
-	}
+    public Double getRemainingAmount() {
+        return remainingAmount;
+    }
 
-	public void setRemainingAmount(double remainingAmount) {
-		this.remainingAmount = remainingAmount;
-	}
+    public void setRemainingAmount(Double remainingAmount) {
+        this.remainingAmount = remainingAmount;
+    }
 
-	public int getTotalEmis() {
-		return totalEmis;
-	}
+    public Integer getTotalEmis() {
+        return totalEmis;
+    }
 
-	public void setTotalEmis(int totalEmis) {
-		this.totalEmis = totalEmis;
-	}
+    public void setTotalEmis(Integer totalEmis) {
+        this.totalEmis = totalEmis;
+    }
 
-	public int getPaidEmis() {
-		return paidEmis;
-	}
+    public Integer getPaidEmis() {
+        return paidEmis;
+    }
 
-	public void setPaidEmis(int paidEmis) {
-		this.paidEmis = paidEmis;
-	}
+    public void setPaidEmis(Integer paidEmis) {
+        this.paidEmis = paidEmis;
+    }
 
-	public int getRemainingEmis() {
-		return remainingEmis;
-	}
+    public Integer getRemainingEmis() {
+        return remainingEmis;
+    }
 
-	public void setRemainingEmis(int remainingEmis) {
-		this.remainingEmis = remainingEmis;
-	}
+    public void setRemainingEmis(Integer remainingEmis) {
+        this.remainingEmis = remainingEmis;
+    }
 
-	public String getNextEmiDate() {
-		return nextEmiDate;
-	}
+    public LocalDate getLoanDate() {
+        return loanDate;
+    }
 
-	public void setNextEmiDate(String nextEmiDate) {
-		this.nextEmiDate = nextEmiDate;
-	}
-    
+    public void setLoanDate(LocalDate loanDate) {
+        this.loanDate = loanDate;
+    }
+
+    public LocalDate getNextEmiDate() {
+        return nextEmiDate;
+    }
+
+    public void setNextEmiDate(LocalDate nextEmiDate) {
+        this.nextEmiDate = nextEmiDate;
+    }
+
+    public List<Emi> getEmiPayments() {
+        return emiPayments;
+    }
+
+    public void setEmiPayments(List<Emi> emiPayments) {
+        this.emiPayments = emiPayments;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    @Override
+    public String toString() {
+        return "Loan{" +
+                "id=" + id +
+                ", customer=" + (customer != null ? customer.getName() : "null") +
+                ", goldType='" + goldType + '\'' +
+                ", weight=" + weight +
+                ", loanAmount=" + loanAmount +
+                ", status='" + status + '\'' +
+                '}';
+    }
 }
+

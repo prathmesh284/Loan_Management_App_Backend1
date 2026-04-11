@@ -1,40 +1,77 @@
 package com.example.LoanManagementApp.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 
+/**
+ * EMI Entity - Represents EMI payment records
+ * Maintains relationship with Loan for payment tracking
+ */
 @Entity
 @Table(name = "emi_payments")
 public class Emi {
+
+    // ==================== FIELDS ====================
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long loanId;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "loan_id", nullable = false)
+    @NotNull(message = "Loan cannot be null")
+    private Loan loan;
 
-    private double amountPaid;
+    @NotNull(message = "Amount paid cannot be null")
+    @DecimalMin(value = "0", message = "Amount paid cannot be negative")
+    @Column(nullable = false)
+    private Double amountPaid;
 
-    private double remainingAmount;
+    @NotNull(message = "Remaining amount cannot be null")
+    @DecimalMin(value = "0", message = "Remaining amount cannot be negative")
+    @Column(nullable = false)
+    private Double remainingAmount;
 
-    private int totalEmis;
+    @NotNull(message = "Total EMIs cannot be null")
+    @Min(value = 1, message = "Total EMIs must be at least 1")
+    @Column(nullable = false)
+    private Integer totalEmis;
 
-    private int paidEmis;
+    @NotNull(message = "Paid EMIs cannot be null")
+    @Min(value = 0, message = "Paid EMIs cannot be negative")
+    @Column(nullable = false)
+    private Integer paidEmis;
 
-    private int remainingEmis;
+    @NotNull(message = "Remaining EMIs cannot be null")
+    @Min(value = 0, message = "Remaining EMIs cannot be negative")
+    @Column(nullable = false)
+    private Integer remainingEmis;
 
-    private String paymentMethod; // CASH / UPI
+    @NotBlank(message = "Payment method cannot be empty")
+    @Pattern(regexp = "^(CASH|UPI|CHEQUE|ONLINE_TRANSFER)$", 
+             message = "Payment method must be CASH, UPI, CHEQUE, or ONLINE_TRANSFER")
+    @Column(nullable = false)
+    private String paymentMethod;
 
-    private LocalDate paymentDate;
+    @NotNull(message = "Payment date cannot be null")
+    @Column(name = "payment_date", nullable = false)
+    private LocalDate paymentDate = LocalDate.now();
 
-    private String status;
-    // Constructors
+    @NotBlank(message = "Status cannot be empty")
+    @Pattern(regexp = "^(PENDING|PAID|OVERDUE|DEFAULT)$", 
+             message = "Status must be PENDING, PAID, OVERDUE, or DEFAULT")
+    @Column(nullable = false)
+    private String status = "PENDING";
+
+    // ==================== CONSTRUCTORS ====================
+
     public Emi() {}
 
-    public Emi(Long loanId, double amountPaid, double remainingAmount,
-                      int totalEmis, int paidEmis, int remainingEmis,
-                      String paymentMethod, LocalDate paymentDate) {
-        this.loanId = loanId;
+    public Emi(Loan loan, Double amountPaid, Double remainingAmount,
+               Integer totalEmis, Integer paidEmis, Integer remainingEmis,
+               String paymentMethod, LocalDate paymentDate) {
+        this.loan = loan;
         this.amountPaid = amountPaid;
         this.remainingAmount = remainingAmount;
         this.totalEmis = totalEmis;
@@ -44,38 +81,7 @@ public class Emi {
         this.paymentDate = paymentDate;
     }
 
-    // Getters & Setters
-    public double getAmountPaid() {
-        return amountPaid;
-    }
-
-    public Long getLoanId() {
-        return loanId;
-    }
-
-    public double getRemainingAmount() {
-        return remainingAmount;
-    }
-
-    public int getTotalEmis() {
-        return totalEmis;
-    }
-
-    public int getPaidEmis() {
-        return paidEmis;
-    }
-
-    public int getRemainingEmis() {
-        return remainingEmis;
-    }
-
-    public String getPaymentMethod() {
-        return paymentMethod;
-    }
-
-    public LocalDate getPaymentDate() {
-        return paymentDate;
-    }
+    // ==================== GETTERS & SETTERS ====================
 
     public Long getId() {
         return id;
@@ -85,43 +91,87 @@ public class Emi {
         this.id = id;
     }
 
-    public void setLoanId(Long loanId) {
-        this.loanId = loanId;
+    public Loan getLoan() {
+        return loan;
     }
 
-    public void setAmountPaid(double amountPaid) {
+    public void setLoan(Loan loan) {
+        this.loan = loan;
+    }
+
+    public Double getAmountPaid() {
+        return amountPaid;
+    }
+
+    public void setAmountPaid(Double amountPaid) {
         this.amountPaid = amountPaid;
     }
 
-    public void setRemainingAmount(double remainingAmount) {
+    public Double getRemainingAmount() {
+        return remainingAmount;
+    }
+
+    public void setRemainingAmount(Double remainingAmount) {
         this.remainingAmount = remainingAmount;
     }
 
-    public void setTotalEmis(int totalEmis) {
+    public Integer getTotalEmis() {
+        return totalEmis;
+    }
+
+    public void setTotalEmis(Integer totalEmis) {
         this.totalEmis = totalEmis;
     }
 
-    public void setPaidEmis(int paidEmis) {
+    public Integer getPaidEmis() {
+        return paidEmis;
+    }
+
+    public void setPaidEmis(Integer paidEmis) {
         this.paidEmis = paidEmis;
     }
 
-    public void setRemainingEmis(int remainingEmis) {
+    public Integer getRemainingEmis() {
+        return remainingEmis;
+    }
+
+    public void setRemainingEmis(Integer remainingEmis) {
         this.remainingEmis = remainingEmis;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethod;
     }
 
     public void setPaymentMethod(String paymentMethod) {
         this.paymentMethod = paymentMethod;
     }
 
+    public LocalDate getPaymentDate() {
+        return paymentDate;
+    }
+
     public void setPaymentDate(LocalDate paymentDate) {
         this.paymentDate = paymentDate;
+    }
+
+    public String getStatus() {
+        return status;
     }
 
     public void setStatus(String status) {
         this.status = status;
     }
 
-    public String getStatus() {
-        return status;
+    @Override
+    public String toString() {
+        return "Emi{" +
+                "id=" + id +
+                ", loan=" + (loan != null ? loan.getId() : "null") +
+                ", amountPaid=" + amountPaid +
+                ", paymentMethod='" + paymentMethod + '\'' +
+                ", paymentDate=" + paymentDate +
+                ", status='" + status + '\'' +
+                '}';
     }
 }

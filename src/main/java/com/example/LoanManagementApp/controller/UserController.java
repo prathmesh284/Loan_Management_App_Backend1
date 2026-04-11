@@ -9,8 +9,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
+import com.example.LoanManagementApp.DTO.LoginDTO;
 import com.example.LoanManagementApp.DTO.LoginResponse;
+import com.example.LoanManagementApp.DTO.UserSignupDTO;
 import com.example.LoanManagementApp.model.Users;
 import com.example.LoanManagementApp.service.UserService;
 
@@ -23,13 +26,13 @@ public class UserController {
 	private UserService userService;
 	
 	@PostMapping("/signup")
-    public ResponseEntity<Users> register(@RequestBody Users user) {
-        return ResponseEntity.ok(userService.register(user));
+    public ResponseEntity<Users> register(@Valid @RequestBody UserSignupDTO signupDTO) {
+        return ResponseEntity.ok(userService.register(signupDTO));
     }
 
 	@PostMapping("/login")
-	public ResponseEntity<LoginResponse> login(@RequestBody Users user) {
-	    return ResponseEntity.ok(userService.login(user));
+	public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginDTO loginDTO) {
+	    return ResponseEntity.ok(userService.login(loginDTO));
 	}
 
 }

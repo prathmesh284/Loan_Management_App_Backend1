@@ -46,7 +46,7 @@ public class EmiService {
 
         // Save EMI record
         Emi emi = new Emi(
-                loanId,
+                loan,
                 emiAmount,
                 remainingAmount,
                 totalEmis,
@@ -63,7 +63,7 @@ public class EmiService {
 
         Emi emi = new Emi();
 
-        emi.setLoanId(request.getLoanId());
+        emi.setLoan(request.getLoan());
         emi.setAmountPaid(request.getAmountPaid());
         emi.setPaymentMethod(request.getPaymentMethod());
         emi.setStatus("PAID");

@@ -24,17 +24,16 @@ public class DocumentController {
     @PostMapping("/upload")
     public Document upload(
             @RequestParam String customerId,
-            @RequestParam String customerName,
             @RequestParam String docType,
+            @RequestParam String docName,
             @RequestParam MultipartFile file
     ) {
 
         String url = s3Service.uploadFile(file);
 
         Document doc = new Document();
-        doc.setCustomerId(customerId);
-        doc.setCustomerName(customerName);
         doc.setDocType(docType);
+        doc.setDocName(docName);
         doc.setS3Url(url);
 
         return repo.save(doc);
@@ -42,6 +41,6 @@ public class DocumentController {
 
     @GetMapping("/search")
     public List<Document> search(@RequestParam String keyword) {
-        return repo.findByCustomerIdContainingOrCustomerNameContaining(keyword, keyword);
+        return repo.findByKeyword(keyword);
     }
 }
