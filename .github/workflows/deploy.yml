@@ -1,0 +1,53 @@
+name: Deploy Spring Boot to Lambda
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 🧾 Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ☕ Set Java 17 (THIS FIXES YOUR ISSUE 🔥)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 📦 Build project
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      # 🔍 Debug: verify class version
+      - name: Verify Java version in compiled class
+        run: |
+          javap -verbose target/classes/com/example/LoanManagementApp/StreamLambdaHandler.class | grep "major"
+
+      # ☁️ Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ap-south-1
+
+      # 📤 Upload JAR to S3
+      - name: Upload to S3
+        run: |
+          aws s3 cp target/LoanManagementApp-0.0.1-SNAPSHOT.jar \
+          s3://${{ secrets.S3_BUCKET }}/lambda/LoanManagementApp.jar
+
+      # 🚀 Deploy to Lambda
+      - name: Update Lambda Function
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
+            --s3-bucket ${{ secrets.S3_BUCKET }} \
+            --s3-key lambda/LoanManagementApp.jar
