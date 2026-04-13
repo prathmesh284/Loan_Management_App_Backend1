@@ -15,7 +15,10 @@ jobs:
     steps:
       # 🧾 Checkout code
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
 
       # ☕ Set Java 17 (THIS FIXES YOUR ISSUE 🔥)
       - name: Set up JDK 17
