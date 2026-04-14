@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Loan Management App - Spring Boot on AWS Lambda with API Gateway'
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+    Runtime: java17
+    EphemeralStorage:
+      Size: 512  # MB (max 10240)
+    Environment:
+      Variables:
+        AWS_LAMBDA_LOG_LEVEL: INFO
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+
+  DBHost:
+    Type: String
+    Description: RDS MySQL endpoint
+    NoEcho: true
+
+  DBPort:
+    Type: String
+    Default: '3306'
+    Description: RDS MySQL port
+
+  DBName:
+    Type: String
+    Description: Database name
+
+  DBUsername:
+    Type: String
+    Description: Database username
+    NoEcho: true
+
+  DBPassword:
+    Type: String
+    Description: Database password
+    NoEcho: true
+
+  JWTSecret:
+    Type: String
+    Description: JWT Secret key
+    NoEcho: true
+
+  AWSAccessKey:
+    Type: String
+    Description: AWS Access Key ID
+    NoEcho: true
+
+  AWSSecretKey:
+    Type: String
+    Description: AWS Secret Access Key
+    NoEcho: true
+
+  AWSRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS Region
+
+  AWSBucketName:
+    Type: String
+    Description: S3 bucket name for file uploads
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, 'prod']
+  IsNotProd: !Not [!Condition IsProd]
+
+Resources:
+  # Lambda Function
+  LoanManagementFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'loan-management-${Environment}'
+      CodeUri: ./target/lambda-deployment.jar
+      Handler: com.example.LoanManagementApp.StreamLambdaHandler
+      Description: Loan Management Spring Boot application
+      Timeout: 60
+      MemorySize: !If [IsProd, 1024, 512]
+      ReservedConcurrentExecutions: !If [IsProd, 100, 10]
+      
+      Environment:
+        Variables:
+          DB_HOST: !Ref DBHost
+          DB_PORT: !Ref DBPort
+          DB_NAME: !Ref DBName
+          DB_USERNAME: !Ref DBUsername
+          DB_PASSWORD: !Ref DBPassword
+          JWT_SECRET: !Ref JWTSecret
+          My_AWS_ACCESS_KEY: !Ref AWSAccessKey
+          My_AWS_SECRET_KEY: !Ref AWSSecretKey
+          My_AWS_REGION: !Ref AWSRegion
+          My_AWS_BUCKET_NAME: !Ref AWSBucketName
+          SPRING_PROFILE: !Ref Environment
+
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*'
+            
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+                - s3:ListBucket
+              Resource:
+                - !Sub 'arn:aws:s3:::${AWSBucketName}'
+                - !Sub 'arn:aws:s3:::${AWSBucketName}/*'
+            
+            - Effect: Allow
+              Action:
+                - ec2:CreateNetworkInterface
+                - ec2:DescribeNetworkInterfaces
+                - ec2:DeleteNetworkInterface
+              Resource: '*'
+
+      Events:
+        # HTTP API (preferred over REST API for cost and performance)
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LoanManagementApi
+            Path: '{proxy+}'
+            Method: ANY
+            TimeoutInMillis: 60000
+            PayloadFormatVersion: '2.0'
+
+  # HTTP API (more efficient and cheaper than REST API)
+  LoanManagementApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: !Sub 'loan-management-api-${Environment}'
+      Description: Loan Management API
+      StageName: !Ref Environment
+      CorsConfiguration:
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - PATCH
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Amz-Date
+          - X-Api-Key
+          - X-Amz-Security-Token
+        AllowOrigins:
+          - '*'
+        MaxAge: 600
+        AllowCredentials: true
+
+  # CloudWatch Log Group
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/loan-management-${Environment}'
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  # Lambda Alias for traffic shifting (Blue/Green deployment)
+  LambdaAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref LoanManagementFunction
+      FunctionVersion: !GetAtt LambdaFunction.Version
+      Name: live
+      RoutingConfig:
+        AdditionalVersionWeights:
+          - FunctionVersion: !GetAtt LambdaFunction.Version
+            FunctionWeight: 0
+
+  # Security Group for Lambda in VPC
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda function
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+          Description: MySQL access
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS outbound
+
+  # VPC (replace with your existing VPC)
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${LoanManagementApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+
+  LambdaFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt LoanManagementFunction.Arn
+
+  LambdaFunctionName:
+    Description: Lambda function name
+    Value: !Ref LoanManagementFunction
+
+  LogGroupName:
+    Description: CloudWatch Log Group name
+    Value: !Ref LambdaLogGroup

@@ -117,17 +117,7 @@
 
     <build>
         <plugins>
-
-            <!-- Spring Boot Plugin -->
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <skip>true</skip>
-                </configuration>
-            </plugin>
-
-            <!-- Shade Plugin (IMPORTANT for Lambda packaging) -->
+            <!-- Shade Plugin (REQUIRED for Lambda - creates fat JAR) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -141,7 +131,6 @@
                     </execution>
                 </executions>
             </plugin>
-
         </plugins>
     </build>
 
