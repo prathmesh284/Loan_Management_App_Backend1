@@ -3,6 +3,7 @@ package com.example.LoanManagementApp.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * Customer Entity - Represents loan customers/applicants
@@ -56,9 +57,11 @@ public class Customer {
     private String address;
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Loan> loans;
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Document> documents;
 
     // ==================== CONSTRUCTORS ====================
