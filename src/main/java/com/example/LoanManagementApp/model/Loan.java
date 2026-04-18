@@ -24,10 +24,14 @@ public class Loan {
     @NotNull(message = "Customer cannot be null")
     private Customer customer;
 
-    @NotBlank(message = "Gold type cannot be empty")
-    @Pattern(regexp = "^(22K|23K|24K)$", message = "Gold type must be 22K, 23K, or 24K")
+    @NotBlank(message = "Gold purity cannot be empty")
+    @Pattern(regexp = "^(22K|23K|24K)$", message = "Gold purity must be 22K, 23K, or 24K")
     @Column(nullable = false)
-    private String goldType;
+    private String goldPurity;  // Purity level: 22K, 23K, or 24K
+
+    @NotBlank(message = "Gold item type cannot be empty")
+    @Column(nullable = false)
+    private String goldItemType;  // Item type: Ring, Necklace, Bracelet, etc.
 
     @NotNull(message = "Weight cannot be null")
     @DecimalMin(value = "0.1", message = "Weight must be greater than 0")
@@ -110,11 +114,12 @@ public class Loan {
 
     public Loan() {}
 
-    public Loan(Customer customer, String goldType, Double weight, Double goldPrice,
+    public Loan(Customer customer, String goldPurity, String goldItemType, Double weight, Double goldPrice,
                 Double ltv, Double interestRate, Integer tenure, Double loanAmount,
                 Double emi, Double totalInterest, Double totalAmount) {
         this.customer = customer;
-        this.goldType = goldType;
+        this.goldPurity = goldPurity;
+        this.goldItemType = goldItemType;
         this.weight = weight;
         this.goldPrice = goldPrice;
         this.ltv = ltv;
@@ -148,12 +153,20 @@ public class Loan {
         this.customer = customer;
     }
 
-    public String getGoldType() {
-        return goldType;
+    public String getGoldPurity() {
+        return goldPurity;
     }
 
-    public void setGoldType(String goldType) {
-        this.goldType = goldType;
+    public void setGoldPurity(String goldPurity) {
+        this.goldPurity = goldPurity;
+    }
+
+    public String getGoldItemType() {
+        return goldItemType;
+    }
+
+    public void setGoldItemType(String goldItemType) {
+        this.goldItemType = goldItemType;
     }
 
     public Double getWeight() {
@@ -305,7 +318,8 @@ public class Loan {
         return "Loan{" +
                 "id=" + id +
                 ", customer=" + (customer != null ? customer.getName() : "null") +
-                ", goldType='" + goldType + '\'' +
+                ", goldPurity='" + goldPurity + '\'' +
+                ", goldItemType='" + goldItemType + '\'' +
                 ", weight=" + weight +
                 ", loanAmount=" + loanAmount +
                 ", status='" + status + '\'' +
