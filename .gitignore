@@ -34,3 +34,6 @@ build/
 
 ### ENV VAR ###
 .env
+
+#pem file
+global-bundle.pem

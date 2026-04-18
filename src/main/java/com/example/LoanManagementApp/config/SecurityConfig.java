@@ -40,7 +40,8 @@ public class SecurityConfig {
 						.requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers(
 								"/api/auth/signup",
-								"/api/auth/login"
+								"/api/auth/login",
+								"/api/branches"
 						).permitAll()
 						.anyRequest().authenticated()
 				)
