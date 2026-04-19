@@ -1,17 +1,14 @@
 package com.example.LoanManagementApp.service;
 
 import java.security.Key;
-import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import io.jsonwebtoken.Claims;
@@ -23,19 +20,8 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JWTService {
 
-	private String secretKey = "";
-	
-	public JWTService() {
-		try {
-			KeyGenerator keyGen = KeyGenerator.getInstance("HmacSHA256");
-			keyGen.init(256); // Specify key size
-			SecretKey sk = keyGen.generateKey();
-			secretKey = Base64.getEncoder().encodeToString(sk.getEncoded());
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		}
-		
-	}
+	@Value("${JWT_SECRET}")
+	private String secretKey;
 	
 	public String generateToken(String username) {
 		
@@ -52,8 +38,12 @@ public class JWTService {
 	}
 
 	private Key getKey() {
-		byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-//		byte[] keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
+		byte[] keyBytes;
+		try {
+			keyBytes = Decoders.BASE64.decode(secretKey);
+		} catch (IllegalArgumentException ex) {
+			keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
+		}
 		return Keys.hmacShaKeyFor(keyBytes);
 	}
 
