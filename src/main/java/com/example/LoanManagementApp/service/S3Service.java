@@ -12,7 +12,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLConnection;
 import java.util.Date;
+import java.util.Locale;
 
 /**
  * AWS S3 Service for file storage and retrieval
@@ -37,21 +39,26 @@ public class S3Service {
      * @return S3 URL of uploaded file
      */
     public String uploadFile(MultipartFile file) {
-        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        String originalFilename = file.getOriginalFilename() != null
+                ? file.getOriginalFilename()
+                : "document";
+        String safeFileName = originalFilename.replaceAll("\\s+", "_");
+        String fileName = System.currentTimeMillis() + "_" + safeFileName;
 
         try {
+            String detectedContentType = resolveContentType(originalFilename, file.getContentType());
             log.info(
                     "[S3-UPLOAD] Starting multipart upload to bucket={} key={} originalFilename={} size={} bytes contentType={}",
                     bucketName,
                     fileName,
-                    file.getOriginalFilename(),
+                    originalFilename,
                     file.getSize(),
-                    file.getContentType()
+                    detectedContentType
             );
 
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(file.getSize());
-            metadata.setContentType(file.getContentType());
+            metadata.setContentType(detectedContentType);
 
             amazonS3.putObject(bucketName, fileName, file.getInputStream(), metadata);
             String url = amazonS3.getUrl(bucketName, fileName).toString();
@@ -228,16 +235,40 @@ public class S3Service {
      * Determine content type based on file extension
      */
     private String getContentType(String s3Key) {
-        if (s3Key.endsWith(".pdf")) {
+        String normalizedKey = s3Key.toLowerCase(Locale.ROOT);
+
+        if (normalizedKey.endsWith(".pdf")) {
             return "application/pdf";
-        } else if (s3Key.endsWith(".html")) {
+        } else if (normalizedKey.endsWith(".png")) {
+            return "image/png";
+        } else if (normalizedKey.endsWith(".jpg") || normalizedKey.endsWith(".jpeg")) {
+            return "image/jpeg";
+        } else if (normalizedKey.endsWith(".gif")) {
+            return "image/gif";
+        } else if (normalizedKey.endsWith(".webp")) {
+            return "image/webp";
+        } else if (normalizedKey.endsWith(".html")) {
             return "text/html";
-        } else if (s3Key.endsWith(".txt")) {
+        } else if (normalizedKey.endsWith(".txt")) {
             return "text/plain";
-        } else if (s3Key.endsWith(".json")) {
+        } else if (normalizedKey.endsWith(".json")) {
             return "application/json";
         }
         return "application/octet-stream";
+    }
+
+    private String resolveContentType(String fileName, String providedContentType) {
+        if (providedContentType != null && !providedContentType.isBlank()
+                && !"application/octet-stream".equalsIgnoreCase(providedContentType)) {
+            return providedContentType;
+        }
+
+        String guessedFromName = URLConnection.guessContentTypeFromName(fileName);
+        if (guessedFromName != null && !guessedFromName.isBlank()) {
+            return guessedFromName;
+        }
+
+        return getContentType(fileName);
     }
 
     /**
