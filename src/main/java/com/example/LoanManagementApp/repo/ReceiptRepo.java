@@ -28,7 +28,7 @@ public interface ReceiptRepo extends JpaRepository<Receipt, Long> {
     List<Receipt> findByLoanId(Long loanId);
 
     // Find receipts by Customer
-    List<Receipt> findByCustomerId(Long customerId);
+    List<Receipt> findByCustomerCustomerId(String customerId);
 
     // Find receipts by status
     List<Receipt> findByStatus(String status);
@@ -51,14 +51,14 @@ public interface ReceiptRepo extends JpaRepository<Receipt, Long> {
 
     // Search receipts by multiple criteria
     @Query("SELECT r FROM Receipt r WHERE " +
-           "(:customerId IS NULL OR r.customer.id = :customerId) AND " +
+           "(:customerId IS NULL OR r.customer.customerId = :customerId) AND " +
            "(:loanId IS NULL OR r.loan.id = :loanId) AND " +
            "(:status IS NULL OR r.status = :status) AND " +
            "(:paymentMethod IS NULL OR r.paymentMethod = :paymentMethod) AND " +
            "r.issuedDate BETWEEN :startDate AND :endDate " +
            "ORDER BY r.issuedDate DESC")
     Page<Receipt> searchReceipts(
-            @Param("customerId") Long customerId,
+            @Param("customerId") String customerId,
             @Param("loanId") Long loanId,
             @Param("status") String status,
             @Param("paymentMethod") String paymentMethod,
@@ -75,7 +75,7 @@ public interface ReceiptRepo extends JpaRepository<Receipt, Long> {
 
     // Find recent receipts for a customer
     @Query(value = "SELECT * FROM receipts WHERE customer_id = :customerId ORDER BY issued_date DESC LIMIT :limit", nativeQuery = true)
-    List<Receipt> findRecentReceiptsByCustomer(@Param("customerId") Long customerId, @Param("limit") int limit);
+    List<Receipt> findRecentReceiptsByCustomer(@Param("customerId") String customerId, @Param("limit") int limit);
 
     // Check if receipt number exists
     boolean existsByReceiptNumber(String receiptNumber);

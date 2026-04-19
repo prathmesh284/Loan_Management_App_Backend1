@@ -23,7 +23,7 @@ public class ReceiptResponse {
 
     private Long loanId;
 
-    private Long customerId;
+    private String customerId;
 
     private String customerName;
 

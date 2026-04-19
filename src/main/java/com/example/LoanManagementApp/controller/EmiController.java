@@ -232,12 +232,12 @@ public class EmiController {
      */
     @GetMapping("/receipts/customer/{customerId}")
     public ResponseEntity<List<ReceiptResponse>> getReceiptsByCustomer(
-            @PathVariable Long customerId) {
+            @PathVariable String customerId) {
 
         log.info("Fetching receipts for customer: {}", customerId);
 
         try {
-            List<Receipt> receipts = receiptRepository.findByCustomerId(customerId);
+            List<Receipt> receipts = receiptRepository.findByCustomerCustomerId(customerId);
 
             List<ReceiptResponse> responses = receipts.stream()
                     .map(this::mapToReceiptResponse)
@@ -338,7 +338,7 @@ public class EmiController {
         response.setReceiptNumber(receipt.getReceiptNumber());
         response.setEmiId(receipt.getEmi().getId());
         response.setLoanId(receipt.getLoan().getId());
-        response.setCustomerId(Long.parseLong(receipt.getCustomer().getCustomerId()));
+        response.setCustomerId(receipt.getCustomer().getCustomerId());
         response.setCustomerName(receipt.getCustomer().getName());
         response.setAmountPaid(receipt.getAmountPaid());
         response.setPaymentMethod(receipt.getPaymentMethod());
