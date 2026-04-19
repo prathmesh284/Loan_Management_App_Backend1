@@ -5,6 +5,7 @@ import com.example.LoanManagementApp.model.Customer;
 import com.example.LoanManagementApp.repo.CustomerRepo;
 import com.example.LoanManagementApp.repo.DocumentRepo;
 import com.example.LoanManagementApp.service.S3Service;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/documents")
 @CrossOrigin("*")
+@Slf4j
 public class DocumentController {
 
     @Autowired
@@ -37,13 +39,28 @@ public class DocumentController {
             @RequestParam(required = false) String docName,
             @RequestParam MultipartFile file
     ) {
+        log.info(
+                "[DOC-UPLOAD] Request received: customerId={}, docType={}, docName={}, originalFilename={}, size={} bytes, contentType={}",
+                customerId,
+                docType,
+                docName,
+                file != null ? file.getOriginalFilename() : null,
+                file != null ? file.getSize() : null,
+                file != null ? file.getContentType() : null
+        );
+
+        log.info("[DOC-UPLOAD] Looking up customer by customerId={}", customerId);
         Optional<Customer> customerOpt = customerRepo.findByCustomerId(customerId);
         if (customerOpt.isEmpty()) {
+            log.warn("[DOC-UPLOAD] Customer not found: {}", customerId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body("Customer not found with ID: " + customerId);
         }
 
+        log.info("[DOC-UPLOAD] Customer found: {}", customerOpt.get().getName());
+        log.info("[DOC-UPLOAD] Starting S3 upload for customerId={}", customerId);
         String url = s3Service.uploadFile(file);
+        log.info("[DOC-UPLOAD] S3 upload completed. URL={}", url);
         Customer customer = customerOpt.get();
 
         Document doc = new Document();
@@ -52,22 +69,31 @@ public class DocumentController {
         doc.setDocName((docName != null && !docName.isBlank()) ? docName : file.getOriginalFilename());
         doc.setS3Url(url);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(repo.save(doc));
+        log.info("[DOC-UPLOAD] Saving document metadata to database for customerId={}", customerId);
+        Document savedDocument = repo.save(doc);
+        log.info("[DOC-UPLOAD] Document saved successfully with id={}", savedDocument.getId());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedDocument);
     }
 
     @GetMapping("/search")
     public List<Document> search(@RequestParam String keyword) {
+        log.info("[DOC-SEARCH] Searching documents with keyword={}", keyword);
         return repo.findByKeyword(keyword);
     }
 
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<?> getDocumentsByCustomer(@PathVariable String customerId) {
+        log.info("[DOC-LIST] Fetching documents for customerId={}", customerId);
         Optional<Customer> customerOpt = customerRepo.findByCustomerId(customerId);
         if (customerOpt.isEmpty()) {
+            log.warn("[DOC-LIST] Customer not found for document fetch: {}", customerId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body("Customer not found with ID: " + customerId);
         }
 
-        return ResponseEntity.ok(repo.findByCustomerPhone(customerId));
+        List<Document> documents = repo.findByCustomerPhone(customerId);
+        log.info("[DOC-LIST] Found {} documents for customerId={}", documents.size(), customerId);
+        return ResponseEntity.ok(documents);
     }
 }

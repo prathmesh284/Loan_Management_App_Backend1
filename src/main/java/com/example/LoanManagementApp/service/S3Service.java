@@ -40,13 +40,29 @@ public class S3Service {
         String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
 
         try {
-            amazonS3.putObject(bucketName, fileName, file.getInputStream(), new ObjectMetadata());
+            log.info(
+                    "[S3-UPLOAD] Starting multipart upload to bucket={} key={} originalFilename={} size={} bytes contentType={}",
+                    bucketName,
+                    fileName,
+                    file.getOriginalFilename(),
+                    file.getSize(),
+                    file.getContentType()
+            );
+
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(file.getSize());
+            metadata.setContentType(file.getContentType());
+
+            amazonS3.putObject(bucketName, fileName, file.getInputStream(), metadata);
             String url = amazonS3.getUrl(bucketName, fileName).toString();
-            log.info("File uploaded to S3: {}", url);
+            log.info("[S3-UPLOAD] File uploaded to S3 successfully: {}", url);
             return url;
         } catch (IOException e) {
-            log.error("Error uploading file to S3", e);
+            log.error("[S3-UPLOAD] IO error uploading file to S3", e);
             throw new RuntimeException("Upload failed: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("[S3-UPLOAD] Unexpected error uploading file to S3", e);
+            throw new RuntimeException("Upload failed: " + e.getMessage(), e);
         }
     }
 
