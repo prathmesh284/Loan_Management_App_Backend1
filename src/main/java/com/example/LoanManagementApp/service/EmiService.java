@@ -60,16 +60,45 @@ public class EmiService {
     }
 
     public Emi payEmi(Emi request) {
+        if (request.getAmountPaid() <= 0) {
+            throw new RuntimeException("Amount paid must be greater than 0");
+        }
 
+        Loan loan = request.getLoan();
+        if (loan == null) {
+            throw new RuntimeException("Loan is required");
+        }
+
+        // Get current loan state
+        int totalEmis = loan.getTotalEmis();
+        int currentPaidEmis = loan.getPaidEmis();
+        int remainingEmis = totalEmis - currentPaidEmis;
+
+        // Calculate remaining amount
+        double remainingAmount = loan.getRemainingAmount() - request.getAmountPaid();
+        if (remainingAmount < 0) {
+            remainingAmount = 0;
+        }
+
+        // Update loan with new payment info
+        loan.setPaidEmis(currentPaidEmis + 1);
+        loan.setRemainingEmis(remainingEmis - 1);
+        loan.setRemainingAmount(remainingAmount);
+        loanRepository.save(loan);
+
+        // Create EMI record with all required fields
         Emi emi = new Emi();
-
-        emi.setLoan(request.getLoan());
+        emi.setLoan(loan);
         emi.setAmountPaid(request.getAmountPaid());
+        emi.setRemainingAmount(remainingAmount);
+        emi.setTotalEmis(totalEmis);
+        emi.setPaidEmis(currentPaidEmis + 1);
+        emi.setRemainingEmis(remainingEmis - 1);
         emi.setPaymentMethod(request.getPaymentMethod());
         emi.setStatus("PAID");
         emi.setPaymentDate(LocalDate.now());
 
-        return emiRepository.save(emi); // 🔥 THIS LINE IS EVERYTHING
+        return emiRepository.save(emi);
     }
 
     public List<Emi> getEmiHistory(Long loanId) {
