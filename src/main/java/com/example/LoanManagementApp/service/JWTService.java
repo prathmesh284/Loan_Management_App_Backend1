@@ -1,6 +1,8 @@
 package com.example.LoanManagementApp.service;
 
 import java.security.Key;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
@@ -43,6 +45,14 @@ public class JWTService {
 			keyBytes = Decoders.BASE64.decode(secretKey);
 		} catch (IllegalArgumentException ex) {
 			keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
+		}
+
+		if (keyBytes.length < 32) {
+			try {
+				keyBytes = MessageDigest.getInstance("SHA-256").digest(keyBytes);
+			} catch (NoSuchAlgorithmException e) {
+				throw new IllegalStateException("Unable to create secure JWT key", e);
+			}
 		}
 		return Keys.hmacShaKeyFor(keyBytes);
 	}
