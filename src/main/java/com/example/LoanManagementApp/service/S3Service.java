@@ -127,11 +127,12 @@ public class S3Service {
      */
     public String uploadFileFromStream(InputStream inputStream, String s3Key, String contentType, long contentLength) {
         try {
-            log.info("Uploading file stream to S3: s3://{}/{}", bucketName, s3Key);
+            String detectedContentType = resolveContentType(s3Key, contentType);
+            log.info("Uploading file stream to S3: s3://{}/{} contentType={}", bucketName, s3Key, detectedContentType);
 
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(contentLength);
-            metadata.setContentType(contentType);
+            metadata.setContentType(detectedContentType);
 
             PutObjectRequest request = new PutObjectRequest(bucketName, s3Key, inputStream, metadata);
             amazonS3.putObject(request);
