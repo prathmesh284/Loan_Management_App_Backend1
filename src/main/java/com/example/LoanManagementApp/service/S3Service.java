@@ -12,7 +12,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URLDecoder;
 import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Locale;
 
@@ -59,6 +62,7 @@ public class S3Service {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(file.getSize());
             metadata.setContentType(detectedContentType);
+            metadata.setContentDisposition("inline; filename=\"" + safeFileName + "\"");
 
             amazonS3.putObject(bucketName, fileName, file.getInputStream(), metadata);
             String url = amazonS3.getUrl(bucketName, fileName).toString();
@@ -93,6 +97,7 @@ public class S3Service {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(file.length());
             metadata.setContentType(getContentType(s3Key));
+            metadata.setContentDisposition("inline; filename=\"" + file.getName() + "\"");
             java.util.Map<String, String> userMetadata = new java.util.HashMap<>();
             userMetadata.put("upload-date", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()));
             metadata.setUserMetadata(userMetadata);
@@ -133,6 +138,7 @@ public class S3Service {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(contentLength);
             metadata.setContentType(detectedContentType);
+            metadata.setContentDisposition("inline");
 
             PutObjectRequest request = new PutObjectRequest(bucketName, s3Key, inputStream, metadata);
             amazonS3.putObject(request);
@@ -229,6 +235,30 @@ public class S3Service {
         } catch (Exception e) {
             log.error("Error generating presigned URL", e);
             throw new RuntimeException("Failed to generate presigned URL: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Generate a presigned URL from a previously stored S3 object URL.
+     */
+    public String generatePresignedUrlFromUrl(String s3Url, int expirationMinutes) {
+        String s3Key = extractS3KeyFromUrl(s3Url);
+        return generatePresignedUrl(s3Key, expirationMinutes);
+    }
+
+    private String extractS3KeyFromUrl(String s3Url) {
+        try {
+            URI uri = URI.create(s3Url);
+            String path = uri.getPath();
+            if (path == null || path.isBlank()) {
+                throw new IllegalArgumentException("Missing S3 object key in URL");
+            }
+
+            String key = path.startsWith("/") ? path.substring(1) : path;
+            return URLDecoder.decode(key, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            log.error("Failed to extract S3 key from URL: {}", s3Url, e);
+            throw new RuntimeException("Invalid S3 URL: " + s3Url);
         }
     }
 

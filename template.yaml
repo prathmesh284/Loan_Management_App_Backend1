@@ -145,7 +145,7 @@ Resources:
             Path: '{proxy+}'
             Method: ANY
             TimeoutInMillis: 60000
-            PayloadFormatVersion: '2.0'
+            PayloadFormatVersion: '1.0'
 
   # HTTP API (more efficient and cheaper than REST API)
   LoanManagementApi:

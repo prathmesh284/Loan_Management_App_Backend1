@@ -71,6 +71,7 @@ public class DocumentController {
 
         log.info("[DOC-UPLOAD] Saving document metadata to database for customerId={}", customerId);
         Document savedDocument = repo.save(doc);
+        savedDocument.setS3Url(s3Service.generatePresignedUrlFromUrl(savedDocument.getS3Url(), 30));
         log.info("[DOC-UPLOAD] Document saved successfully with id={}", savedDocument.getId());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(savedDocument);
@@ -79,7 +80,9 @@ public class DocumentController {
     @GetMapping("/search")
     public List<Document> search(@RequestParam String keyword) {
         log.info("[DOC-SEARCH] Searching documents with keyword={}", keyword);
-        return repo.findByKeyword(keyword);
+        List<Document> documents = repo.findByKeyword(keyword);
+        documents.forEach(this::usePreviewUrl);
+        return documents;
     }
 
     @GetMapping("/customer/{customerId}")
@@ -93,7 +96,12 @@ public class DocumentController {
         }
 
         List<Document> documents = repo.findByCustomerPhone(customerId);
+        documents.forEach(this::usePreviewUrl);
         log.info("[DOC-LIST] Found {} documents for customerId={}", documents.size(), customerId);
         return ResponseEntity.ok(documents);
+    }
+
+    private void usePreviewUrl(Document document) {
+        document.setS3Url(s3Service.generatePresignedUrlFromUrl(document.getS3Url(), 30));
     }
 }
