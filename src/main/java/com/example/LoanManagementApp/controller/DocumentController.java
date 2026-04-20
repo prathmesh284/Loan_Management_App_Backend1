@@ -123,6 +123,17 @@ public class DocumentController {
                 contentType
         );
 
+        if (isPdf(effectiveFileName, contentType) && !hasPdfSignature(fileBytes)) {
+            log.warn(
+                    "[DOC-UPLOAD-BASE64] Rejected invalid PDF upload: customerId={}, fileName={}, size={} bytes",
+                    customerId,
+                    effectiveFileName,
+                    fileBytes.length
+            );
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Invalid PDF file. Please select a valid PDF and upload again.");
+        }
+
         String url = s3Service.uploadFileBytes(fileBytes, effectiveFileName, contentType);
         Customer customer = customerOpt.get();
 
@@ -168,12 +179,24 @@ public class DocumentController {
 
         Document document = documentOpt.get();
         byte[] fileBytes = s3Service.downloadFileBytesFromUrl(document.getS3Url());
+        String contentType = s3Service.getContentTypeFromUrl(document.getS3Url());
+
+        if (isPdf(document.getDocName(), contentType) && !hasPdfSignature(fileBytes)) {
+            log.warn(
+                    "[DOC-CONTENT] Stored document is not a valid PDF: id={}, docName={}, size={} bytes",
+                    document.getId(),
+                    document.getDocName(),
+                    fileBytes.length
+            );
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body("Stored PDF is corrupted or invalid. Please delete it and upload the PDF again.");
+        }
 
         Map<String, Object> response = new HashMap<>();
         response.put("id", document.getId());
         response.put("docName", document.getDocName());
         response.put("docType", document.getDocType());
-        response.put("contentType", s3Service.getContentTypeFromUrl(document.getS3Url()));
+        response.put("contentType", contentType);
         response.put("base64File", Base64.getEncoder().encodeToString(fileBytes));
 
         return ResponseEntity.ok(response);
@@ -235,5 +258,21 @@ public class DocumentController {
         }
 
         return response;
+    }
+
+    private boolean isPdf(String fileName, String contentType) {
+        String normalizedFileName = fileName != null ? fileName.toLowerCase() : "";
+        String normalizedContentType = contentType != null ? contentType.toLowerCase() : "";
+        return normalizedFileName.endsWith(".pdf") || normalizedContentType.contains("application/pdf");
+    }
+
+    private boolean hasPdfSignature(byte[] bytes) {
+        return bytes != null
+                && bytes.length >= 5
+                && bytes[0] == '%'
+                && bytes[1] == 'P'
+                && bytes[2] == 'D'
+                && bytes[3] == 'F'
+                && bytes[4] == '-';
     }
 }
