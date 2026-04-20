@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -75,6 +76,63 @@ public class DocumentController {
         Document savedDocument = repo.save(doc);
         log.info("[DOC-UPLOAD] Document saved successfully with id={}", savedDocument.getId());
 
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(savedDocument));
+    }
+
+    @PostMapping("/upload-base64")
+    public ResponseEntity<?> uploadBase64(@RequestBody Map<String, String> body) {
+        String customerId = body.get("customerId");
+        String docType = body.get("docType");
+        String docName = body.get("docName");
+        String fileName = body.get("fileName");
+        String contentType = body.get("contentType");
+        String base64File = body.get("base64File");
+
+        if (customerId == null || customerId.isBlank()
+                || docType == null || docType.isBlank()
+                || base64File == null || base64File.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("customerId, docType, and base64File are required");
+        }
+
+        Optional<Customer> customerOpt = customerRepo.findByCustomerId(customerId);
+        if (customerOpt.isEmpty()) {
+            log.warn("[DOC-UPLOAD-BASE64] Customer not found: {}", customerId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Customer not found with ID: " + customerId);
+        }
+
+        byte[] fileBytes;
+        try {
+            fileBytes = Base64.getDecoder().decode(base64File);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Invalid base64 file data");
+        }
+
+        String effectiveFileName = (fileName != null && !fileName.isBlank())
+                ? fileName
+                : ((docName != null && !docName.isBlank()) ? docName : "document");
+
+        log.info(
+                "[DOC-UPLOAD-BASE64] Uploading decoded file: customerId={}, docType={}, fileName={}, size={} bytes, contentType={}",
+                customerId,
+                docType,
+                effectiveFileName,
+                fileBytes.length,
+                contentType
+        );
+
+        String url = s3Service.uploadFileBytes(fileBytes, effectiveFileName, contentType);
+        Customer customer = customerOpt.get();
+
+        Document doc = new Document();
+        doc.setCustomer(customer);
+        doc.setDocType(docType);
+        doc.setDocName((docName != null && !docName.isBlank()) ? docName : effectiveFileName);
+        doc.setS3Url(url);
+
+        Document savedDocument = repo.save(doc);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(savedDocument));
     }
 

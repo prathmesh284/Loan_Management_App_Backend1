@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -73,6 +74,44 @@ public class S3Service {
             throw new RuntimeException("Upload failed: " + e.getMessage());
         } catch (Exception e) {
             log.error("[S3-UPLOAD] Unexpected error uploading file to S3", e);
+            throw new RuntimeException("Upload failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Upload already-decoded bytes to S3. This avoids API Gateway/Lambda multipart
+     * byte conversion issues for Flutter web uploads.
+     */
+    public String uploadFileBytes(byte[] bytes, String originalFilename, String contentType) {
+        String safeOriginalFilename = (originalFilename != null && !originalFilename.isBlank())
+                ? originalFilename
+                : "document";
+        String safeFileName = safeOriginalFilename.replaceAll("\\s+", "_");
+        String s3Key = System.currentTimeMillis() + "_" + safeFileName;
+        String detectedContentType = resolveContentType(safeOriginalFilename, contentType);
+
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(bytes.length);
+        metadata.setContentType(detectedContentType);
+        metadata.setContentDisposition("inline; filename=\"" + safeFileName + "\"");
+
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes)) {
+            log.info(
+                    "[S3-UPLOAD-BYTES] Uploading decoded bytes to bucket={} key={} size={} contentType={}",
+                    bucketName,
+                    s3Key,
+                    bytes.length,
+                    detectedContentType
+            );
+            amazonS3.putObject(bucketName, s3Key, inputStream, metadata);
+            String url = amazonS3.getUrl(bucketName, s3Key).toString();
+            log.info("[S3-UPLOAD-BYTES] File uploaded to S3 successfully: {}", url);
+            return url;
+        } catch (IOException e) {
+            log.error("[S3-UPLOAD-BYTES] IO error uploading file to S3", e);
+            throw new RuntimeException("Upload failed: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("[S3-UPLOAD-BYTES] Unexpected error uploading file to S3", e);
             throw new RuntimeException("Upload failed: " + e.getMessage(), e);
         }
     }
