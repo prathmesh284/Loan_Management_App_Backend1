@@ -278,6 +278,35 @@ public class S3Service {
     }
 
     /**
+     * Download object bytes from a stored S3 URL.
+     */
+    public byte[] downloadFileBytesFromUrl(String s3Url) {
+        String s3Key = extractS3KeyFromUrl(s3Url);
+
+        try (InputStream inputStream = downloadFile(s3Key)) {
+            return inputStream.readAllBytes();
+        } catch (IOException e) {
+            log.error("IO error reading S3 object bytes: {}", s3Url, e);
+            throw new RuntimeException("Failed to read file bytes: " + e.getMessage(), e);
+        }
+    }
+
+    public String getContentTypeFromUrl(String s3Url) {
+        String s3Key = extractS3KeyFromUrl(s3Url);
+
+        try {
+            ObjectMetadata metadata = amazonS3.getObjectMetadata(bucketName, s3Key);
+            String contentType = metadata.getContentType();
+            return (contentType != null && !contentType.isBlank())
+                    ? contentType
+                    : getContentType(s3Key);
+        } catch (Exception e) {
+            log.warn("Failed to read S3 metadata for {}, falling back to extension", s3Url, e);
+            return getContentType(s3Key);
+        }
+    }
+
+    /**
      * Delete an object using its stored S3 URL.
      */
     public void deleteFileFromUrl(String s3Url) {

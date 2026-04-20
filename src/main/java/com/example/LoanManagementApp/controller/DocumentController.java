@@ -158,6 +158,27 @@ public class DocumentController {
         return ResponseEntity.ok(documents.stream().map(this::toResponse).toList());
     }
 
+    @GetMapping("/{id}/content-base64")
+    public ResponseEntity<?> getDocumentContentBase64(@PathVariable Long id) {
+        Optional<Document> documentOpt = repo.findById(id);
+        if (documentOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Document not found with ID: " + id);
+        }
+
+        Document document = documentOpt.get();
+        byte[] fileBytes = s3Service.downloadFileBytesFromUrl(document.getS3Url());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", document.getId());
+        response.put("docName", document.getDocName());
+        response.put("docType", document.getDocType());
+        response.put("contentType", s3Service.getContentTypeFromUrl(document.getS3Url()));
+        response.put("base64File", Base64.getEncoder().encodeToString(fileBytes));
+
+        return ResponseEntity.ok(response);
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<?> updateDocument(
             @PathVariable Long id,
