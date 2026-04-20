@@ -239,6 +239,13 @@ public class S3Service {
     }
 
     /**
+     * Delete an object using its stored S3 URL.
+     */
+    public void deleteFileFromUrl(String s3Url) {
+        deleteFile(extractS3KeyFromUrl(s3Url));
+    }
+
+    /**
      * Generate a presigned URL from a previously stored S3 object URL.
      */
     public String generatePresignedUrlFromUrl(String s3Url, int expirationMinutes) {
