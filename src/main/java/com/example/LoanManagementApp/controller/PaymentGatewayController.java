@@ -1,10 +1,15 @@
 package com.example.LoanManagementApp.controller;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -21,6 +26,9 @@ import com.example.LoanManagementApp.DTO.PaymentRequest;
 import com.example.LoanManagementApp.service.EmiService;
 import com.example.LoanManagementApp.service.PaymentGatewayService;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -32,6 +40,11 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/api/payments")
 @CrossOrigin(origins = "*")
 public class PaymentGatewayController {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${razorpay.webhook.secret:}")
+    private String razorpayWebhookSecret;
 
     @Autowired
     private EmiService emiService;
@@ -45,20 +58,22 @@ public class PaymentGatewayController {
      */
     @PostMapping("/webhook/razorpay")
     public ResponseEntity<Map<String, Object>> razorpayWebhook(
-            @RequestBody Map<String, Object> payload,
+            @RequestBody String rawPayload,
             @RequestHeader(value = "X-Razorpay-Signature", required = false) String signature) {
 
-        log.info("Razorpay webhook received: {}", payload);
+        log.info("Razorpay webhook received");
 
         try {
+            Map<String, Object> payload = objectMapper.readValue(rawPayload, new TypeReference<>() {});
+
             // Verify signature
-            if (!verifyRazorpaySignature(payload, signature)) {
+            if (!verifyRazorpaySignature(rawPayload, signature)) {
                 log.warn("Invalid Razorpay signature");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("success", false, "message", "Invalid signature"));
             }
 
-            Map<String, Object> event = (Map<String, Object>) payload.get("event");
+            String event = (String) payload.get("event");
             Map<String, Object> paymentData = (Map<String, Object>) payload.get("payload");
 
             if ("payment.authorized".equals(event) || "payment.captured".equals(event)) {
@@ -196,13 +211,13 @@ public class PaymentGatewayController {
      * Initiate payment (create order/link)
      */
     @PostMapping("/initiate")
-    public ResponseEntity<Map<String, Object>> initiatePayment(
-            @RequestParam Long loanId,
-            @RequestParam BigDecimal amount,
-            @RequestParam String customerId,
-            @RequestParam(defaultValue = "razorpay") String gateway) {
+    public ResponseEntity<Map<String, Object>> initiatePayment(@RequestBody InitiatePaymentRequest request) {
 
-        log.info("Initiating {} payment for loan: {} amount: {}", gateway, loanId, amount);
+        String gateway = request.getGateway() == null || request.getGateway().isBlank()
+                ? "razorpay"
+                : request.getGateway();
+
+        log.info("Initiating {} payment for loan: {} amount: {}", gateway, request.getLoanId(), request.getAmount());
 
         try {
             if (paymentGatewayService == null) {
@@ -210,13 +225,18 @@ public class PaymentGatewayController {
                         .body(Map.of("success", false, "message", "Payment gateway not configured"));
             }
 
-            String orderId = generateOrderId(loanId);
-            String paymentLink = paymentGatewayService.createPaymentLink(amount, customerId, loanId, orderId);
+            String orderId = generateOrderId(request.getLoanId());
+            String paymentLink = paymentGatewayService.createPaymentLink(
+                    request.getAmount(),
+                    request.getCustomerId(),
+                    request.getLoanId(),
+                    orderId
+            );
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", paymentLink != null);
-            response.put("loanId", loanId);
-            response.put("amount", amount);
+            response.put("loanId", request.getLoanId());
+            response.put("amount", request.getAmount());
             response.put("orderId", orderId);
             response.put("paymentLink", paymentLink);
             response.put("gateway", gateway);
@@ -294,10 +314,36 @@ public class PaymentGatewayController {
     /**
      * Verify Razorpay signature
      */
-    private boolean verifyRazorpaySignature(Map<String, Object> payload, String signature) {
-        // TODO: Implement HMAC-SHA256 signature verification
-        // For now, return true - implement proper verification in production
-        return true;
+    private boolean verifyRazorpaySignature(String rawPayload, String signature) {
+        if (signature == null || signature.isBlank()) {
+            return false;
+        }
+        if (razorpayWebhookSecret == null || razorpayWebhookSecret.isBlank()) {
+            log.warn("RAZORPAY_WEBHOOK_SECRET is not configured; accepting signed webhook without HMAC check");
+            return true;
+        }
+
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(razorpayWebhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] digest = mac.doFinal(rawPayload.getBytes(StandardCharsets.UTF_8));
+            String expectedSignature = bytesToHex(digest);
+            return MessageDigest.isEqual(
+                    expectedSignature.getBytes(StandardCharsets.UTF_8),
+                    signature.getBytes(StandardCharsets.UTF_8)
+            );
+        } catch (Exception e) {
+            log.error("Error verifying Razorpay webhook signature", e);
+            return false;
+        }
+    }
+
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder result = new StringBuilder(bytes.length * 2);
+        for (byte value : bytes) {
+            result.append(String.format("%02x", value));
+        }
+        return result.toString();
     }
 
     /**
@@ -311,6 +357,7 @@ public class PaymentGatewayController {
      * Extract transaction ID from payment data
      */
     private String extractTransactionId(Map<String, Object> data) {
+        data = unwrapPaymentEntity(data);
         Object payment = data.get("payment");
         if (payment instanceof Map) {
             return (String) ((Map<String, Object>) payment).get("id");
@@ -322,6 +369,7 @@ public class PaymentGatewayController {
      * Extract customer ID from payment data
      */
     private String extractCustomerId(Map<String, Object> data) {
+        data = unwrapPaymentEntity(data);
         Object payment = data.get("payment");
         if (payment instanceof Map) {
             Map<String, Object> paymentMap = (Map<String, Object>) payment;
@@ -337,6 +385,7 @@ public class PaymentGatewayController {
      * Extract loan ID from payment data
      */
     private String extractLoanId(Map<String, Object> data) {
+        data = unwrapPaymentEntity(data);
         Object payment = data.get("payment");
         if (payment instanceof Map) {
             Map<String, Object> paymentMap = (Map<String, Object>) payment;
@@ -352,6 +401,7 @@ public class PaymentGatewayController {
      * Extract amount from payment data
      */
     private BigDecimal extractAmount(Map<String, Object> data) {
+        data = unwrapPaymentEntity(data);
         Object payment = data.get("payment");
         if (payment instanceof Map) {
             Map<String, Object> paymentMap = (Map<String, Object>) payment;
@@ -362,5 +412,27 @@ public class PaymentGatewayController {
             }
         }
         return BigDecimal.ZERO;
+    }
+
+    private Map<String, Object> unwrapPaymentEntity(Map<String, Object> data) {
+        Object payment = data.get("payment");
+        if (payment instanceof Map) {
+            Map<String, Object> paymentMap = (Map<String, Object>) payment;
+            Object entity = paymentMap.get("entity");
+            if (entity instanceof Map) {
+                Map<String, Object> wrapped = new HashMap<>();
+                wrapped.put("payment", entity);
+                return wrapped;
+            }
+        }
+        return data;
+    }
+
+    @lombok.Data
+    private static class InitiatePaymentRequest {
+        private Long loanId;
+        private BigDecimal amount;
+        private String customerId;
+        private String gateway;
     }
 }

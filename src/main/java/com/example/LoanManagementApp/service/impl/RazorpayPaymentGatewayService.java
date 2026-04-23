@@ -23,8 +23,6 @@ import java.util.*;
 public class RazorpayPaymentGatewayService implements PaymentGatewayService {
 
     private static final String RAZORPAY_BASE_URL = "https://api.razorpay.com/v1";
-    private static final String RAZORPAY_CHECKOUT_URL = "https://checkout.razorpay.com/v1/checkout.js";
-
     @Value("${razorpay.key.id:}")
     private String razorpayKeyId;
 
@@ -48,33 +46,32 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
             // Convert amount to paise (Razorpay uses paise)
             long amountInPaise = amount.multiply(BigDecimal.valueOf(100)).longValue();
 
-            // Prepare request body
-            Map<String, Object> orderDetails = new HashMap<>();
-            orderDetails.put("amount", amountInPaise);
-            orderDetails.put("currency", "INR");
-            orderDetails.put("receipt", orderId);
-            orderDetails.put("notes", Map.of(
+            Map<String, Object> paymentLinkDetails = new HashMap<>();
+            paymentLinkDetails.put("amount", amountInPaise);
+            paymentLinkDetails.put("currency", "INR");
+            paymentLinkDetails.put("accept_partial", false);
+            paymentLinkDetails.put("reference_id", orderId);
+            paymentLinkDetails.put("description", "Loan EMI payment for loan " + loanId);
+            paymentLinkDetails.put("callback_url", callbackUrl);
+            paymentLinkDetails.put("callback_method", "get");
+            paymentLinkDetails.put("notes", Map.of(
                     "customer_id", customerId,
                     "loan_id", loanId.toString(),
                     "order_id", orderId
             ));
-            orderDetails.put("timeout", 1800); // 30 minutes
 
-            // Create order via Razorpay API
-            String orderUrl = RAZORPAY_BASE_URL + "/orders";
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(orderDetails, getAuthHeaders());
-            ResponseEntity<Map> response = restTemplate.postForEntity(orderUrl, request, Map.class);
+            String paymentLinkUrl = RAZORPAY_BASE_URL + "/payment_links";
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(paymentLinkDetails, getAuthHeaders());
+            ResponseEntity<Map> response = restTemplate.postForEntity(paymentLinkUrl, request, Map.class);
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map<String, Object> orderResponse = response.getBody();
-                String razorpayOrderId = (String) orderResponse.get("id");
-
-                // Build payment link
-                String paymentLink = buildPaymentLink(razorpayOrderId, amount, customerId, loanId);
-                log.info("Payment link created successfully: {}", razorpayOrderId);
+                Map<String, Object> paymentLinkResponse = response.getBody();
+                String razorpayPaymentLinkId = (String) paymentLinkResponse.get("id");
+                String paymentLink = (String) paymentLinkResponse.get("short_url");
+                log.info("Payment link created successfully: {}", razorpayPaymentLinkId);
                 return paymentLink;
             } else {
-                log.error("Failed to create Razorpay order: {}", response.getStatusCode());
+                log.error("Failed to create Razorpay payment link: {}", response.getStatusCode());
                 return null;
             }
         } catch (Exception e) {
@@ -176,18 +173,6 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
     @Override
     public String getGatewayName() {
         return "razorpay";
-    }
-
-    /**
-     * Build payment link for Razorpay Checkout
-     */
-    private String buildPaymentLink(String razorpayOrderId, BigDecimal amount, String customerId, Long loanId) {
-        // This would typically be a link that includes embedded checkout or hosted page
-        // For now, we return the order ID which will be used with Razorpay's hosted checkout
-        return String.format("%s?order_id=%s&key_id=%s",
-                RAZORPAY_CHECKOUT_URL,
-                razorpayOrderId,
-                razorpayKeyId);
     }
 
     /**
