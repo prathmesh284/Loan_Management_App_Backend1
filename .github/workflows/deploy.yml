@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - dev
+      - dev-v3
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
