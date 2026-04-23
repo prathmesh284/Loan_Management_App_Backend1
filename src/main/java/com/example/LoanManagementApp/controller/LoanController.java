@@ -61,7 +61,16 @@ public class LoanController {
             // Create Loan from request
             Loan loan = new Loan();
             loan.setCustomer(customerOpt.get());
-            loan.setGoldPurity(getString(request, "goldPurity"));
+            String goldPurity = getString(request, "goldPurity", "purity", "gold_purity");
+            if (goldPurity == null) {
+                log.warn("Loan creation rejected because goldPurity is missing in request={}", request);
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Error creating loan: goldPurity is required"
+                ));
+            }
+
+            loan.setGoldPurity(goldPurity);
             loan.setGoldItemType(getString(request, "goldItemType", "goldType"));
             loan.setWeight(getDouble(request, "weight"));
             loan.setGoldPrice(getDouble(request, "goldPrice"));
