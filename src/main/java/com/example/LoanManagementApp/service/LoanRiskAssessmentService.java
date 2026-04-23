@@ -74,30 +74,43 @@ public class LoanRiskAssessmentService {
             throw new IllegalStateException("Loan risk model is not configured");
         }
 
-        Map<String, Object> features = buildFeatures(customer, proposedLoan, request);
-        List<Object> payload = buildPayload(features);
-        Map<String, Object> prediction = invokePrediction(payload);
+        try {
+            Map<String, Object> features = buildFeatures(customer, proposedLoan, request);
+            List<Object> payload = buildPayload(features);
+            Map<String, Object> prediction = invokePrediction(payload);
 
-        LoanRiskAssessmentResult result = new LoanRiskAssessmentResult();
-        result.setModelChecked(true);
-        result.setPredictedClass(toInteger(prediction.get("predicted_class")));
-        result.setApprovalProbability(toDouble(prediction.get("approval_probability")));
+            LoanRiskAssessmentResult result = new LoanRiskAssessmentResult();
+            result.setModelChecked(true);
+            result.setPredictedClass(toInteger(prediction.get("predicted_class")));
+            result.setApprovalProbability(toDouble(prediction.get("approval_probability")));
 
-        String recommendedDecision = Optional.ofNullable(prediction.get("recommended_decision"))
-                .map(String::valueOf)
-                .orElse("MANUAL REVIEW");
-        result.setRecommendedDecision(recommendedDecision);
-        result.setEligibleForAutoApproval("APPROVE".equalsIgnoreCase(recommendedDecision));
+            String recommendedDecision = Optional.ofNullable(prediction.get("recommended_decision"))
+                    .map(String::valueOf)
+                    .orElse("MANUAL REVIEW");
+            result.setRecommendedDecision(recommendedDecision);
+            result.setEligibleForAutoApproval("APPROVE".equalsIgnoreCase(recommendedDecision));
 
-        if (result.isEligibleForAutoApproval()) {
-            result.setMessage("Loan applicant passed the ML credibility check.");
-        } else if ("MANUAL REVIEW".equalsIgnoreCase(recommendedDecision)) {
-            result.setMessage("Loan applicant requires manual review before loan creation.");
-        } else {
-            result.setMessage("Loan applicant was flagged as high risk by the ML model.");
+            if (result.isEligibleForAutoApproval()) {
+                result.setMessage("Loan applicant passed the ML credibility check.");
+            } else if ("MANUAL REVIEW".equalsIgnoreCase(recommendedDecision)) {
+                result.setMessage("Loan applicant requires manual review before loan creation.");
+            } else {
+                result.setMessage("Loan applicant was flagged as high risk by the ML model.");
+            }
+
+            return result;
+        } catch (Exception e) {
+            log.error("Loan risk model check failed; proceeding without blocking loan creation", e);
+
+            LoanRiskAssessmentResult fallback = new LoanRiskAssessmentResult();
+            fallback.setModelChecked(false);
+            fallback.setPredictedClass(null);
+            fallback.setApprovalProbability(null);
+            fallback.setRecommendedDecision("MODEL_UNAVAILABLE");
+            fallback.setEligibleForAutoApproval(true);
+            fallback.setMessage("Loan risk model is temporarily unavailable. Loan creation was allowed.");
+            return fallback;
         }
-
-        return result;
     }
 
     private Map<String, Object> buildFeatures(Customer customer, Loan proposedLoan, Map<String, Object> request) {

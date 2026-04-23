@@ -12,9 +12,6 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: LoanManagementApp
 
     steps:
       # 🧾 Checkout code
@@ -58,8 +55,5 @@ jobs:
 
       # 🚀 Deploy to Lambda
       - name: Update Lambda Function
-        working-directory: .
         run: |
           aws lambda update-function-code --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} --s3-bucket ${{ secrets.S3_BUCKET }} --s3-key lambda/app-${VERSION}.jar
-          aws lambda wait function-updated --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }}
-          aws lambda get-function --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} --query 'Configuration.[FunctionName,LastModified,Version]' --output table
