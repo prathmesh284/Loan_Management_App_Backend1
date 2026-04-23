@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import lombok.extern.slf4j.Slf4j;
+
 import com.example.LoanManagementApp.model.Customer;
 import com.example.LoanManagementApp.model.Loan;
 import com.example.LoanManagementApp.repo.CustomerRepo;
@@ -22,6 +24,7 @@ import com.example.LoanManagementApp.service.LoanRiskAssessmentService;
 import com.example.LoanManagementApp.service.LoanService;
 import com.example.LoanManagementApp.DTO.LoanRiskAssessmentResult;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/loans")
 @CrossOrigin(origins = "*")
@@ -40,14 +43,18 @@ public class LoanController {
     @PostMapping("/add")
     public ResponseEntity<?> createLoan(@RequestBody Map<String, Object> request) {
         try {
+            log.info("Received loan creation request for customerId={}", request.get("customerId"));
+
             // Extract customerId and load the Customer entity
             String customerId = (String) request.get("customerId");
             if (customerId == null || customerId.isEmpty()) {
+                log.warn("Loan creation rejected because customerId is missing");
                 return ResponseEntity.badRequest().body("Error: customerId is required");
             }
             
             Optional<Customer> customerOpt = customerRepo.findByCustomerId(customerId);
             if (customerOpt.isEmpty()) {
+                log.warn("Loan creation rejected because customer was not found: {}", customerId);
                 return ResponseEntity.badRequest().body("Error: Customer not found with ID: " + customerId);
             }
             
@@ -72,7 +79,20 @@ public class LoanController {
                     request
             );
 
+            log.info(
+                    "Loan risk assessment completed for customerId={} decision={} probability={}",
+                    customerId,
+                    riskAssessment.getRecommendedDecision(),
+                    riskAssessment.getApprovalProbability()
+            );
+
             if (!riskAssessment.isEligibleForAutoApproval()) {
+                log.warn(
+                        "Loan creation blocked by ML check for customerId={} decision={} probability={}",
+                        customerId,
+                        riskAssessment.getRecommendedDecision(),
+                        riskAssessment.getApprovalProbability()
+                );
                 return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of(
                         "success", false,
                         "message", riskAssessment.getMessage(),
@@ -81,6 +101,7 @@ public class LoanController {
             }
 
             Loan saved = service.createLoan(loan);
+            log.info("Loan created successfully with id={} for customerId={}", saved.getId(), customerId);
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                     "success", true,
                     "message", "Loan created successfully after ML risk validation.",
@@ -89,6 +110,7 @@ public class LoanController {
             ));
 
         } catch (Exception e) {
+            log.error("Loan creation failed for request={}", request, e);
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "message", "Error creating loan: " + e.getMessage()
