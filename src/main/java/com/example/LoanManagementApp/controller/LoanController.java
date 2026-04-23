@@ -61,17 +61,17 @@ public class LoanController {
             // Create Loan from request
             Loan loan = new Loan();
             loan.setCustomer(customerOpt.get());
-            loan.setGoldPurity((String) request.get("goldPurity"));
-            loan.setGoldItemType((String) request.get("goldItemType"));
-            loan.setWeight(((Number) request.get("weight")).doubleValue());
-            loan.setGoldPrice(((Number) request.get("goldPrice")).doubleValue());
-            loan.setLtv(((Number) request.get("ltv")).doubleValue());
-            loan.setInterestRate(((Number) request.get("interestRate")).doubleValue());
-            loan.setTenure(((Number) request.get("tenure")).intValue());
-            loan.setLoanAmount(((Number) request.get("loanAmount")).doubleValue());
-            loan.setEmi(((Number) request.get("emi")).doubleValue());
-            loan.setTotalInterest(((Number) request.get("totalInterest")).doubleValue());
-            loan.setTotalAmount(((Number) request.get("totalAmount")).doubleValue());
+            loan.setGoldPurity(getString(request, "goldPurity"));
+            loan.setGoldItemType(getString(request, "goldItemType", "goldType"));
+            loan.setWeight(getDouble(request, "weight"));
+            loan.setGoldPrice(getDouble(request, "goldPrice"));
+            loan.setLtv(getDouble(request, "ltv"));
+            loan.setInterestRate(getDouble(request, "interestRate"));
+            loan.setTenure(getInteger(request, "tenure"));
+            loan.setLoanAmount(getDouble(request, "loanAmount"));
+            loan.setEmi(getDouble(request, "emi"));
+            loan.setTotalInterest(getDouble(request, "totalInterest"));
+            loan.setTotalAmount(getDouble(request, "totalAmount"));
 
             LoanRiskAssessmentResult riskAssessment = loanRiskAssessmentService.assessLoanApplication(
                     customerOpt.get(),
@@ -129,5 +129,46 @@ public class LoanController {
     @GetMapping("/all")
     public ResponseEntity<List<Loan>> getAllLoans() {
         return ResponseEntity.ok(service.getAllLoans());
+    }
+
+    private String getString(Map<String, Object> request, String... keys) {
+        for (String key : keys) {
+            Object value = request.get(key);
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                if (!text.isEmpty()) {
+                    return text;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Double getDouble(Map<String, Object> request, String key) {
+        Object value = request.get(key);
+        if (value == null) {
+            throw new IllegalArgumentException("Missing required numeric field: " + key);
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            return Double.parseDouble(text.trim());
+        }
+        throw new IllegalArgumentException("Invalid numeric field: " + key + " value=" + value);
+    }
+
+    private Integer getInteger(Map<String, Object> request, String key) {
+        Object value = request.get(key);
+        if (value == null) {
+            throw new IllegalArgumentException("Missing required integer field: " + key);
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            return Integer.parseInt(text.trim());
+        }
+        throw new IllegalArgumentException("Invalid integer field: " + key + " value=" + value);
     }
 }
