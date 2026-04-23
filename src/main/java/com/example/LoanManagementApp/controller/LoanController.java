@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.LoanManagementApp.model.Customer;
 import com.example.LoanManagementApp.model.Loan;
 import com.example.LoanManagementApp.repo.CustomerRepo;
+import com.example.LoanManagementApp.service.LoanRiskAssessmentService;
 import com.example.LoanManagementApp.service.LoanService;
+import com.example.LoanManagementApp.DTO.LoanRiskAssessmentResult;
 
 @RestController
 @RequestMapping("/api/loans")
@@ -30,6 +32,9 @@ public class LoanController {
     
     @Autowired
     private CustomerRepo customerRepo;
+
+    @Autowired
+    private LoanRiskAssessmentService loanRiskAssessmentService;
 
     // -------------------- CREATE LOAN --------------------
     @PostMapping("/add")
@@ -60,12 +65,34 @@ public class LoanController {
             loan.setEmi(((Number) request.get("emi")).doubleValue());
             loan.setTotalInterest(((Number) request.get("totalInterest")).doubleValue());
             loan.setTotalAmount(((Number) request.get("totalAmount")).doubleValue());
-            
+
+            LoanRiskAssessmentResult riskAssessment = loanRiskAssessmentService.assessLoanApplication(
+                    customerOpt.get(),
+                    loan,
+                    request
+            );
+
+            if (!riskAssessment.isEligibleForAutoApproval()) {
+                return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of(
+                        "success", false,
+                        "message", riskAssessment.getMessage(),
+                        "riskAssessment", riskAssessment
+                ));
+            }
+
             Loan saved = service.createLoan(loan);
-            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                    "success", true,
+                    "message", "Loan created successfully after ML risk validation.",
+                    "loan", saved,
+                    "riskAssessment", riskAssessment
+            ));
 
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error creating loan: " + e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Error creating loan: " + e.getMessage()
+            ));
         }
     }
 
