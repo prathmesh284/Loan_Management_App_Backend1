@@ -16,8 +16,9 @@ public class RestClientConfig {
     @Bean
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
         return builder
-                .setConnectTimeout(Duration.ofSeconds(10))
-                .setReadTimeout(Duration.ofSeconds(30))
+                // Fail fast so API Gateway can return a useful 503 instead of timing out with 504.
+                .setConnectTimeout(Duration.ofSeconds(4))
+                .setReadTimeout(Duration.ofSeconds(8))
                 .build();
     }
 }
