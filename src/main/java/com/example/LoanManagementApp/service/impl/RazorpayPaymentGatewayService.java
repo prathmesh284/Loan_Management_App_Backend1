@@ -55,6 +55,8 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
             boolean isUpiPayment = "UPI".equalsIgnoreCase(stringValue(options.get("paymentMethod")));
             String preferredUpiApp = stringValue(options.get("upiApp"));
             String receiptNumber = stringValue(options.get("receiptNumber"));
+            Map<String, Object> customer = mapValue(options.get("customer"));
+            Map<String, Object> notify = mapValue(options.get("notify"));
 
             Map<String, Object> paymentLinkDetails = new HashMap<>();
             paymentLinkDetails.put("amount", amountInPaise);
@@ -79,6 +81,12 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
                 notes.put("receipt_number", receiptNumber);
             }
             paymentLinkDetails.put("notes", notes);
+            if (!customer.isEmpty()) {
+                paymentLinkDetails.put("customer", customer);
+            }
+            if (!notify.isEmpty()) {
+                paymentLinkDetails.put("notify", notify);
+            }
 
             String paymentLinkUrl = RAZORPAY_BASE_URL + "/payment_links";
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(paymentLinkDetails, getAuthHeaders());
@@ -233,5 +241,19 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
 
     private String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mapValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new HashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    result.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+            }
+            return result;
+        }
+        return Collections.emptyMap();
     }
 }

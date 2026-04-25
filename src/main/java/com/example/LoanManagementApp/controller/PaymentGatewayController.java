@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.LoanManagementApp.DTO.PaymentRequest;
+import com.example.LoanManagementApp.model.Customer;
+import com.example.LoanManagementApp.repo.CustomerRepo;
 import com.example.LoanManagementApp.service.EmiService;
 import com.example.LoanManagementApp.service.PaymentGatewayService;
 
@@ -49,6 +51,9 @@ public class PaymentGatewayController {
 
     @Autowired
     private EmiService emiService;
+
+    @Autowired
+    private CustomerRepo customerRepo;
 
     @Autowired(required = false)
     private PaymentGatewayService paymentGatewayService;
@@ -244,6 +249,7 @@ public class PaymentGatewayController {
             response.put("gateway", gateway);
             response.put("paymentMethod", request.getPaymentMethod());
             response.put("upiApp", request.getUpiApp());
+            response.put("sendToCustomer", true);
 
             return ResponseEntity.ok(response);
 
@@ -377,7 +383,26 @@ public class PaymentGatewayController {
         options.put("upiApp", request.getUpiApp());
         options.put("upiId", request.getUpiId());
         options.put("receiptNumber", request.getReceiptNumber());
+        options.put("sendToCustomer", true);
+
+        customerRepo.findByCustomerId(request.getCustomerId())
+                .ifPresent(customer -> enrichCustomerOptions(options, customer));
         return options;
+    }
+
+    private void enrichCustomerOptions(Map<String, Object> options, Customer customer) {
+        Map<String, Object> customerDetails = new HashMap<>();
+        customerDetails.put("name", customer.getName());
+        customerDetails.put("contact", customer.getCustomerId());
+        if (customer.getEmail() != null && !customer.getEmail().isBlank()) {
+            customerDetails.put("email", customer.getEmail());
+        }
+        options.put("customer", customerDetails);
+
+        Map<String, Object> notify = new HashMap<>();
+        notify.put("sms", true);
+        notify.put("email", customer.getEmail() != null && !customer.getEmail().isBlank());
+        options.put("notify", notify);
     }
 
     /**
