@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -231,6 +232,7 @@ public class PaymentGatewayController {
                         .body(Map.of("success", false, "message", "Payment gateway not configured"));
             }
 
+            Optional<Customer> customerOptional = customerRepo.findByCustomerId(request.getCustomerId());
             String orderId = generateOrderId(request.getLoanId());
             String paymentLink = paymentGatewayService.createPaymentLink(
                     request.getAmount(),
@@ -250,6 +252,7 @@ public class PaymentGatewayController {
             response.put("paymentMethod", request.getPaymentMethod());
             response.put("upiApp", request.getUpiApp());
             response.put("sendToCustomer", true);
+            customerOptional.ifPresent(customer -> addCustomerResponseDetails(response, customer));
 
             return ResponseEntity.ok(response);
 
@@ -403,6 +406,14 @@ public class PaymentGatewayController {
         notify.put("sms", true);
         notify.put("email", customer.getEmail() != null && !customer.getEmail().isBlank());
         options.put("notify", notify);
+    }
+
+    private void addCustomerResponseDetails(Map<String, Object> response, Customer customer) {
+        response.put("customerName", customer.getName());
+        response.put("customerPhone", customer.getCustomerId());
+        if (customer.getEmail() != null && !customer.getEmail().isBlank()) {
+            response.put("customerEmail", customer.getEmail());
+        }
     }
 
     /**
