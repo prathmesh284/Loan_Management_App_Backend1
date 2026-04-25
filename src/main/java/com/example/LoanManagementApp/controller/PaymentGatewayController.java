@@ -249,8 +249,18 @@ public class PaymentGatewayController {
 
         } catch (Exception e) {
             log.error("Error initiating payment", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("success", false, "message", e.getMessage()));
+            String message = e.getMessage() == null ? "Payment initiation failed" : e.getMessage();
+            HttpStatus status = message.contains("Could not connect to Razorpay")
+                    ? HttpStatus.SERVICE_UNAVAILABLE
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+
+            return ResponseEntity.status(status)
+                    .body(Map.of(
+                            "success", false,
+                            "message", message,
+                            "gateway", gateway,
+                            "loanId", request.getLoanId()
+                    ));
         }
     }
 

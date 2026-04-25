@@ -8,6 +8,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -90,11 +92,24 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
                 return paymentLink.isBlank() ? null : paymentLink;
             } else {
                 log.error("Failed to create Razorpay payment link: {}", response.getStatusCode());
-                return null;
+                throw new IllegalStateException("Razorpay returned " + response.getStatusCode() + " while creating payment link");
             }
+        } catch (ResourceAccessException e) {
+            log.error("Error creating Razorpay payment link", e);
+            throw new IllegalStateException(
+                    "Could not connect to Razorpay from backend. Check AWS Lambda internet access, NAT gateway, route tables, and security-group egress.",
+                    e
+            );
+        } catch (HttpStatusCodeException e) {
+            log.error("Error creating Razorpay payment link", e);
+            String responseBody = e.getResponseBodyAsString();
+            throw new IllegalStateException(
+                    "Razorpay rejected the payment link request: " + (responseBody == null || responseBody.isBlank() ? e.getStatusCode() : responseBody),
+                    e
+            );
         } catch (Exception e) {
             log.error("Error creating Razorpay payment link", e);
-            return null;
+            throw new IllegalStateException("Failed to create Razorpay payment link: " + e.getMessage(), e);
         }
     }
 
