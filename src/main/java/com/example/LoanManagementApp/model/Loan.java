@@ -1,5 +1,7 @@
 package com.example.LoanManagementApp.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
@@ -22,6 +24,7 @@ public class Loan {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "customer_id", referencedColumnName = "customer_id", nullable = false)
     @NotNull(message = "Customer cannot be null")
+    @JsonIgnoreProperties({"loans", "documents", "branch", "email", "aadharNumber", "panNumber", "address"})
     private Customer customer;
 
     @NotBlank(message = "Gold purity cannot be empty")
@@ -103,6 +106,7 @@ public class Loan {
     private LocalDate nextEmiDate;
 
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Emi> emiPayments;
 
     @NotNull(message = "Status cannot be null")

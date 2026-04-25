@@ -1,5 +1,6 @@
 package com.example.LoanManagementApp.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
@@ -21,6 +22,7 @@ public class Emi {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "loan_id", nullable = false)
     @NotNull(message = "Loan cannot be null")
+    @JsonIgnore
     private Loan loan;
 
     @NotNull(message = "Amount paid cannot be null")
