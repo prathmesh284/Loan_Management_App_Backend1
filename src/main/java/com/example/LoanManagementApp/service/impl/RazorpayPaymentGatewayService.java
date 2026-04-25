@@ -40,25 +40,43 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
 
     @Override
     public String createPaymentLink(BigDecimal amount, String customerId, Long loanId, String orderId) {
+        return createPaymentLink(amount, customerId, loanId, orderId, Collections.emptyMap());
+    }
+
+    @Override
+    public String createPaymentLink(BigDecimal amount, String customerId, Long loanId, String orderId, Map<String, Object> options) {
         log.info("Creating Razorpay payment link for customer: {} loan: {} order: {}", customerId, loanId, orderId);
 
         try {
             // Convert amount to paise (Razorpay uses paise)
             long amountInPaise = amount.multiply(BigDecimal.valueOf(100)).longValue();
+            boolean isUpiPayment = "UPI".equalsIgnoreCase(stringValue(options.get("paymentMethod")));
+            String preferredUpiApp = stringValue(options.get("upiApp"));
+            String receiptNumber = stringValue(options.get("receiptNumber"));
 
             Map<String, Object> paymentLinkDetails = new HashMap<>();
             paymentLinkDetails.put("amount", amountInPaise);
             paymentLinkDetails.put("currency", "INR");
             paymentLinkDetails.put("accept_partial", false);
+            if (isUpiPayment) {
+                paymentLinkDetails.put("upi_link", true);
+            }
             paymentLinkDetails.put("reference_id", orderId);
             paymentLinkDetails.put("description", "Loan EMI payment for loan " + loanId);
             paymentLinkDetails.put("callback_url", callbackUrl);
             paymentLinkDetails.put("callback_method", "get");
-            paymentLinkDetails.put("notes", Map.of(
-                    "customer_id", customerId,
-                    "loan_id", loanId.toString(),
-                    "order_id", orderId
-            ));
+            Map<String, Object> notes = new HashMap<>();
+            notes.put("customer_id", customerId);
+            notes.put("loan_id", loanId.toString());
+            notes.put("order_id", orderId);
+            notes.put("payment_method", isUpiPayment ? "UPI" : "ONLINE_TRANSFER");
+            if (!preferredUpiApp.isBlank()) {
+                notes.put("preferred_upi_app", preferredUpiApp);
+            }
+            if (!receiptNumber.isBlank()) {
+                notes.put("receipt_number", receiptNumber);
+            }
+            paymentLinkDetails.put("notes", notes);
 
             String paymentLinkUrl = RAZORPAY_BASE_URL + "/payment_links";
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(paymentLinkDetails, getAuthHeaders());
@@ -67,9 +85,9 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> paymentLinkResponse = response.getBody();
                 String razorpayPaymentLinkId = (String) paymentLinkResponse.get("id");
-                String paymentLink = (String) paymentLinkResponse.get("short_url");
-                log.info("Payment link created successfully: {}", razorpayPaymentLinkId);
-                return paymentLink;
+                String paymentLink = stringValue(paymentLinkResponse.get("short_url"));
+                log.info("Payment link created successfully: {} type={}", razorpayPaymentLinkId, isUpiPayment ? "UPI" : "STANDARD");
+                return paymentLink.isBlank() ? null : paymentLink;
             } else {
                 log.error("Failed to create Razorpay payment link: {}", response.getStatusCode());
                 return null;
@@ -196,5 +214,9 @@ public class RazorpayPaymentGatewayService implements PaymentGatewayService {
     public boolean isConfigured() {
         return razorpayKeyId != null && !razorpayKeyId.isEmpty()
                 && razorpayKeySecret != null && !razorpayKeySecret.isEmpty();
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 }

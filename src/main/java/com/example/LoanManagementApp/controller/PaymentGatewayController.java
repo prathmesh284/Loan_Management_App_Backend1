@@ -3,6 +3,7 @@ package com.example.LoanManagementApp.controller;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -230,7 +231,8 @@ public class PaymentGatewayController {
                     request.getAmount(),
                     request.getCustomerId(),
                     request.getLoanId(),
-                    orderId
+                    orderId,
+                    buildPaymentLinkOptions(request)
             );
 
             Map<String, Object> response = new HashMap<>();
@@ -240,6 +242,8 @@ public class PaymentGatewayController {
             response.put("orderId", orderId);
             response.put("paymentLink", paymentLink);
             response.put("gateway", gateway);
+            response.put("paymentMethod", request.getPaymentMethod());
+            response.put("upiApp", request.getUpiApp());
 
             return ResponseEntity.ok(response);
 
@@ -353,6 +357,19 @@ public class PaymentGatewayController {
         return String.format("ORD_%d_%d", loanId, System.currentTimeMillis());
     }
 
+    private Map<String, Object> buildPaymentLinkOptions(InitiatePaymentRequest request) {
+        if (request == null) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Object> options = new HashMap<>();
+        options.put("paymentMethod", request.getPaymentMethod());
+        options.put("upiApp", request.getUpiApp());
+        options.put("upiId", request.getUpiId());
+        options.put("receiptNumber", request.getReceiptNumber());
+        return options;
+    }
+
     /**
      * Extract transaction ID from payment data
      */
@@ -434,5 +451,9 @@ public class PaymentGatewayController {
         private BigDecimal amount;
         private String customerId;
         private String gateway;
+        private String paymentMethod;
+        private String upiApp;
+        private String upiId;
+        private String receiptNumber;
     }
 }
