@@ -47,6 +47,9 @@ public class EmiService {
     @Autowired(required = false)
     private ReceiptGenerationService receiptGenerationService;
 
+    @Autowired
+    private ReceiptNumberService receiptNumberService;
+
     /**
      * Calculate monthly EMI amount based on loan amount, tenure, and interest rate
      * Formula: EMI = P × [R(1+R)^N] / [(1+R)^N - 1]
@@ -224,6 +227,7 @@ public class EmiService {
     private Receipt createReceipt(Emi emi, Loan loan, Customer customer, PaymentRequest paymentRequest) {
         Receipt receipt = new Receipt(emi, loan, customer, paymentRequest.getAmount(),
                 paymentRequest.getPaymentMethod(), paymentRequest.getPaymentMode());
+        receipt.setReceiptNumber(resolveReceiptNumber(customer, paymentRequest));
 
         receipt.setTransactionId(paymentRequest.getPaymentId());
         receipt.setStatus("CONFIRMED");
@@ -243,6 +247,15 @@ public class EmiService {
                 paymentMode.equals("STRIPE") ||
                 paymentMode.equals("BANK_TRANSFER")
         );
+    }
+
+    private String resolveReceiptNumber(Customer customer, PaymentRequest paymentRequest) {
+        String requestedReceiptNumber = paymentRequest.getReceiptNumber();
+        if (requestedReceiptNumber != null && !requestedReceiptNumber.isBlank()
+                && !receiptRepository.existsByReceiptNumber(requestedReceiptNumber.trim())) {
+            return requestedReceiptNumber.trim();
+        }
+        return receiptNumberService.generateReceiptNumber(customer);
     }
 
     /**

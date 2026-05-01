@@ -72,7 +72,7 @@ public class Receipt {
     @Column
     private String remarks; // Additional remarks/notes
 
-    // Constructor for creating receipt with auto-generated number
+    // Constructor for creating receipt with basic metadata.
     public Receipt(Emi emi, Loan loan, Customer customer, BigDecimal amountPaid, 
                   String paymentMethod, String paymentMode) {
         this.emi = emi;
@@ -83,28 +83,6 @@ public class Receipt {
         this.paymentMode = paymentMode;
         this.status = "PENDING";
         this.issuedDate = LocalDateTime.now();
-        this.receiptNumber = generateReceiptNumber(customer);
-    }
-
-    /**
-     * Generates receipt number in format: RECIPT-YYYYMM_CUSTOMERID_LASTNUM_NO
-     * Example: RECIPT-202604_CUST001_5_001
-     */
-    public static String generateReceiptNumber(Customer customer) {
-        String pattern = "RECIPT-YYYYMM_CUSTOMERID_LASTNUM_NO";
-        
-        LocalDateTime now = LocalDateTime.now();
-        String yearMonth = String.format("%04d%02d", now.getYear(), now.getMonthValue());
-        
-        // Extract customer ID (e.g., "CUST001" -> "001")
-        String customerId = customer.getCustomerId();
-        String lastNum = customerId.replaceAll("[^0-9]", ""); // Extract numbers
-        lastNum = lastNum.length() > 0 ? lastNum.substring(Math.max(0, lastNum.length() - 3)) : "000"; // Last 3 digits
-        
-        // Sequential number (will be handled by database or service)
-        String sequenceNo = "001";
-        
-        return String.format("RECIPT-%s_%s_%s_%s", yearMonth, customerId, lastNum, sequenceNo);
     }
 
     /**

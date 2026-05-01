@@ -29,6 +29,7 @@ import com.example.LoanManagementApp.model.Customer;
 import com.example.LoanManagementApp.repo.CustomerRepo;
 import com.example.LoanManagementApp.service.EmiService;
 import com.example.LoanManagementApp.service.PaymentGatewayService;
+import com.example.LoanManagementApp.service.ReceiptNumberService;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -58,6 +59,9 @@ public class PaymentGatewayController {
 
     @Autowired(required = false)
     private PaymentGatewayService paymentGatewayService;
+
+    @Autowired
+    private ReceiptNumberService receiptNumberService;
 
     /**
      * Webhook endpoint for Razorpay payment callbacks
@@ -233,13 +237,21 @@ public class PaymentGatewayController {
             }
 
             Optional<Customer> customerOptional = customerRepo.findByCustomerId(request.getCustomerId());
+            String receiptNumber = customerOptional
+                    .map(customer -> {
+                        if (request.getReceiptNumber() != null && !request.getReceiptNumber().isBlank()) {
+                            return request.getReceiptNumber().trim();
+                        }
+                        return receiptNumberService.generateReceiptNumber(customer);
+                    })
+                    .orElse(request.getReceiptNumber());
             String orderId = generateOrderId(request.getLoanId());
             String paymentLink = paymentGatewayService.createPaymentLink(
                     request.getAmount(),
                     request.getCustomerId(),
                     request.getLoanId(),
                     orderId,
-                    buildPaymentLinkOptions(request)
+                    buildPaymentLinkOptions(request, receiptNumber)
             );
 
             Map<String, Object> response = new HashMap<>();
@@ -251,6 +263,7 @@ public class PaymentGatewayController {
             response.put("gateway", gateway);
             response.put("paymentMethod", request.getPaymentMethod());
             response.put("upiApp", request.getUpiApp());
+            response.put("receiptNumber", receiptNumber);
             response.put("sendToCustomer", true);
             customerOptional.ifPresent(customer -> addCustomerResponseDetails(response, customer));
 
@@ -293,6 +306,27 @@ public class PaymentGatewayController {
         response.put("message", "Payment gateway is operational");
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/next-receipt-number/{customerId}")
+    public ResponseEntity<Map<String, Object>> getNextReceiptNumber(@PathVariable String customerId) {
+        try {
+            Customer customer = customerRepo.findByCustomerId(customerId)
+                    .orElseThrow(() -> new IllegalArgumentException("Customer not found with ID: " + customerId));
+
+            String receiptNumber = receiptNumberService.generateReceiptNumber(customer);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "customerId", customerId,
+                    "receiptNumber", receiptNumber
+            ));
+        } catch (Exception e) {
+            log.error("Error generating preview receipt number for customerId={}", customerId, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
     }
 
     /**
@@ -376,7 +410,7 @@ public class PaymentGatewayController {
         return String.format("ORD_%d_%d", loanId, System.currentTimeMillis());
     }
 
-    private Map<String, Object> buildPaymentLinkOptions(InitiatePaymentRequest request) {
+    private Map<String, Object> buildPaymentLinkOptions(InitiatePaymentRequest request, String receiptNumber) {
         if (request == null) {
             return Collections.emptyMap();
         }
@@ -385,7 +419,7 @@ public class PaymentGatewayController {
         options.put("paymentMethod", request.getPaymentMethod());
         options.put("upiApp", request.getUpiApp());
         options.put("upiId", request.getUpiId());
-        options.put("receiptNumber", request.getReceiptNumber());
+        options.put("receiptNumber", receiptNumber);
         options.put("sendToCustomer", true);
 
         customerRepo.findByCustomerId(request.getCustomerId())

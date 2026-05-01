@@ -60,6 +60,9 @@ public class PaymentRequest {
     @Size(max = 500, message = "Remarks cannot exceed 500 characters")
     private String remarks;
 
+    @Size(max = 100, message = "Receipt number cannot exceed 100 characters")
+    private String receiptNumber;
+
     // For automatic receipt generation
     private Boolean generateReceipt = true;
 
