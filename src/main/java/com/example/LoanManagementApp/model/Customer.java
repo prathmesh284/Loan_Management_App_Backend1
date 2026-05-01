@@ -2,6 +2,7 @@ package com.example.LoanManagementApp.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import java.time.LocalDateTime;
 import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -55,6 +56,17 @@ public class Customer {
     @Size(min = 10, max = 255, message = "Address must be between 10 and 255 characters")
     @Column(nullable = false)
     private String address;
+
+    @NotNull(message = "WhatsApp opt-in flag cannot be null")
+    @Column(name = "whatsapp_opt_in", nullable = false)
+    private Boolean isWhatsappOptIn = false;
+
+    @NotNull(message = "Phone verification flag cannot be null")
+    @Column(name = "phone_verified", nullable = false)
+    private Boolean isPhoneVerified = false;
+
+    @Column(name = "phone_verified_at")
+    private LocalDateTime phoneVerifiedAt;
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
@@ -141,6 +153,30 @@ public class Customer {
 
     public List<Loan> getLoans() {
         return loans;
+    }
+
+    public Boolean getIsWhatsappOptIn() {
+        return isWhatsappOptIn;
+    }
+
+    public void setIsWhatsappOptIn(Boolean whatsappOptIn) {
+        isWhatsappOptIn = whatsappOptIn;
+    }
+
+    public Boolean getIsPhoneVerified() {
+        return isPhoneVerified;
+    }
+
+    public void setIsPhoneVerified(Boolean phoneVerified) {
+        isPhoneVerified = phoneVerified;
+    }
+
+    public LocalDateTime getPhoneVerifiedAt() {
+        return phoneVerifiedAt;
+    }
+
+    public void setPhoneVerifiedAt(LocalDateTime phoneVerifiedAt) {
+        this.phoneVerifiedAt = phoneVerifiedAt;
     }
 
     public void setLoans(List<Loan> loans) {

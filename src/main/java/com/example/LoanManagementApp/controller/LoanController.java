@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import com.example.LoanManagementApp.model.Customer;
 import com.example.LoanManagementApp.model.Loan;
 import com.example.LoanManagementApp.repo.CustomerRepo;
+import com.example.LoanManagementApp.service.CustomerService;
 import com.example.LoanManagementApp.service.LoanRiskAssessmentService;
 import com.example.LoanManagementApp.service.LoanService;
 import com.example.LoanManagementApp.DTO.LoanRiskAssessmentResult;
@@ -39,6 +40,9 @@ public class LoanController {
     @Autowired
     private LoanRiskAssessmentService loanRiskAssessmentService;
 
+    @Autowired
+    private CustomerService customerService;
+
     // -------------------- CREATE LOAN --------------------
     @PostMapping("/add")
     public ResponseEntity<?> createLoan(@RequestBody Map<String, Object> request) {
@@ -57,10 +61,34 @@ public class LoanController {
                 log.warn("Loan creation rejected because customer was not found: {}", customerId);
                 return ResponseEntity.badRequest().body("Error: Customer not found with ID: " + customerId);
             }
+
+            Customer customer = customerOpt.get();
+            if (!Boolean.TRUE.equals(customer.getIsPhoneVerified())) {
+                String otpCode = getOptionalString(request, "otpCode", "otp", "verificationOtp");
+                if (otpCode == null || otpCode.isBlank()) {
+                    log.warn("Loan creation rejected because customer phone is not verified customerId={}", customerId);
+                    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of(
+                            "success", false,
+                            "message", "Customer phone is not verified. Please verify OTP before creating the loan."
+                    ));
+                }
+
+                boolean verified = customerService.verifyCustomerOtpForLoanCreation(customerId, otpCode);
+                if (!verified) {
+                    log.warn("Loan creation rejected because OTP verification failed for customerId={}", customerId);
+                    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of(
+                            "success", false,
+                            "message", "OTP verification failed. Loan was not created."
+                    ));
+                }
+
+                customer = customerRepo.findByCustomerId(customerId)
+                        .orElseThrow(() -> new IllegalArgumentException("Customer not found after OTP verification"));
+            }
             
             // Create Loan from request
             Loan loan = new Loan();
-            loan.setCustomer(customerOpt.get());
+            loan.setCustomer(customer);
             String goldPurity = getString(request, "goldPurity", "purity", "gold_purity");
             if (goldPurity == null) {
                 log.warn("Loan creation rejected because goldPurity is missing in request={}", request);
@@ -151,6 +179,10 @@ public class LoanController {
             }
         }
         return null;
+    }
+
+    private String getOptionalString(Map<String, Object> request, String... keys) {
+        return getString(request, keys);
     }
 
     private Double getDouble(Map<String, Object> request, String key) {

@@ -12,12 +12,33 @@ import com.example.LoanManagementApp.repo.CustomerRepo;
 public class CustomerService {
 	@Autowired
     private CustomerRepo repo;
+
+    @Autowired
+    private CustomerOtpService customerOtpService;
 	 
 	public Customer addCustomer(Customer customer) throws Exception {
 		if (repo.existsById(customer.getCustomerId())) {
             throw new RuntimeException("Customer already exists with ID: " + customer.getCustomerId());
         }
+        customer.setIsPhoneVerified(false);
+        customer.setPhoneVerifiedAt(null);
         return repo.save(customer);
+    }
+
+    public java.util.Map<String, Object> sendVerificationOtp(Customer customer) {
+        return customerOtpService.sendCustomerVerificationOtp(customer);
+    }
+
+    public java.util.Map<String, Object> verifyCustomerOtp(String customerId, String otpCode) {
+        return customerOtpService.verifyCustomerOtp(customerId, otpCode);
+    }
+
+    public java.util.Map<String, Object> resendVerificationOtp(String customerId) {
+        return customerOtpService.resendCustomerVerificationOtp(customerId);
+    }
+
+    public boolean verifyCustomerOtpForLoanCreation(String customerId, String otpCode) {
+        return customerOtpService.verifyCustomerOtpForLoanCreation(customerId, otpCode);
     }
 	
 	public Customer updateCustomer(String customerId, Customer updated) {

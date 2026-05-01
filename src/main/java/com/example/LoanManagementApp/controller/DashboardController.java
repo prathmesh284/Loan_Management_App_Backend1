@@ -48,8 +48,10 @@ public class DashboardController {
      * Get loans due within next 30 days (for monitoring)
      */
     @GetMapping("/loans-due-soon/{branchId}")
-    public ResponseEntity<List<Loan>> getLoansCloseToDue(@PathVariable Long branchId) {
-        List<Loan> loansDue = dashboardService.getLoansCloseToDue(branchId);
+    public ResponseEntity<List<Loan>> getLoansCloseToDue(
+            @PathVariable Long branchId,
+            @RequestParam(defaultValue = "30") int days) {
+        List<Loan> loansDue = dashboardService.getLoansCloseToDue(branchId, days);
         return ResponseEntity.ok(loansDue);
     }
 

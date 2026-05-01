@@ -82,19 +82,26 @@ public class DashboardService {
      * Get loans due within next 30 days (for monitoring)
      */
     public List<Loan> getLoansCloseToDue(Long branchId) {
+        return getLoansCloseToDue(branchId, 30);
+    }
+
+    /**
+     * Get loans due within the next N days.
+     */
+    public List<Loan> getLoansCloseToDue(Long branchId, int days) {
         LocalDate today = LocalDate.now();
-        LocalDate thirtyDaysFromNow = today.plusDays(30);
+        LocalDate upperBoundDate = today.plusDays(Math.max(days, 0));
         
         // Get all active loans for branch
         List<Loan> activeLoans = loanRepo.findByBranchId(branchId);
         
-        // Filter loans where nextEmiDate is within 30 days
+        // Filter loans where nextEmiDate is within the requested number of days
         return activeLoans.stream()
                 .filter(loan -> {
                     LocalDate nextEmiDate = loan.getNextEmiDate();
                     return nextEmiDate != null 
                         && !nextEmiDate.isBefore(today)
-                        && !nextEmiDate.isAfter(thirtyDaysFromNow);
+                        && !nextEmiDate.isAfter(upperBoundDate);
                 })
                 .toList();
     }

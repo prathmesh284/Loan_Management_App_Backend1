@@ -60,11 +60,62 @@ public class CustomerController {
             customer.setPanNumber((String) request.get("panNumber"));
             customer.setAddress((String) request.get("address"));
             customer.setBranch(branchOpt.get());
+            Object whatsappOptIn = request.get("isWhatsappOptIn");
+            if (whatsappOptIn instanceof Boolean flag) {
+                customer.setIsWhatsappOptIn(flag);
+            }
             
             Customer saved = service.addCustomer(customer);
-            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+            try {
+                Map<String, Object> otpResponse = service.sendVerificationOtp(saved);
+                return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                        "success", true,
+                        "message", "Customer created successfully. OTP sent for phone verification.",
+                        "customer", saved,
+                        "otp", otpResponse
+                ));
+            } catch (Exception otpException) {
+                return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                        "success", false,
+                        "message", "Customer created, but OTP could not be sent: " + otpException.getMessage(),
+                        "customer", saved
+                ));
+            }
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<?> verifyCustomerOtp(@RequestBody Map<String, Object> request) {
+        try {
+            String customerId = (String) request.get("customerId");
+            String otpCode = (String) request.get("otpCode");
+            if (customerId == null || customerId.isBlank() || otpCode == null || otpCode.isBlank()) {
+                return ResponseEntity.badRequest().body("Error: customerId and otpCode are required");
+            }
+            return ResponseEntity.ok(service.verifyCustomerOtp(customerId, otpCode));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<?> resendCustomerOtp(@RequestBody Map<String, Object> request) {
+        try {
+            String customerId = (String) request.get("customerId");
+            if (customerId == null || customerId.isBlank()) {
+                return ResponseEntity.badRequest().body("Error: customerId is required");
+            }
+            return ResponseEntity.ok(service.resendVerificationOtp(customerId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
         }
     }
 
