@@ -15,6 +15,8 @@ import com.example.LoanManagementApp.model.Users;
 import com.example.LoanManagementApp.repo.BranchRepo;
 import com.example.LoanManagementApp.repo.UserRepo;
 
+import java.util.Map;
+
 @Service
 public class UserService {
 
@@ -30,13 +32,16 @@ public class UserService {
     @Autowired
     private JWTService jwtService;
 
+    @Autowired
+    private UserOtpService userOtpService;
+
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
     /**
      * 🔐 User Registration (Signup) with DTO
      * Converts UserSignupDTO to Users entity and saves to database
      */
-    public Users register(UserSignupDTO signupDTO) {
+    public Map<String, Object> register(UserSignupDTO signupDTO) {
         // Check if username or email already exists
         if (repo.findByUsername(signupDTO.getUsername()) != null) {
             throw new RuntimeException("Username already exists");
@@ -44,6 +49,10 @@ public class UserService {
 
         if (repo.findByEmail(signupDTO.getEmail()) != null) {
             throw new RuntimeException("Email already registered");
+        }
+
+        if (repo.findByPhoneNumber(signupDTO.getPhoneNumber()) != null) {
+            throw new RuntimeException("Phone number already registered");
         }
 
         // Find branch by name (provided by frontend)
@@ -61,9 +70,18 @@ public class UserService {
         user.setGender(signupDTO.getGender().toUpperCase());
         user.setBranch(branch);
         user.setIsActive(true);
+        user.setIsPhoneVerified(false);
+        user.setPhoneVerifiedAt(null);
 
         // Save user to database
-        return repo.save(user);
+        Users saved = repo.save(user);
+        Map<String, Object> otpResponse = userOtpService.sendSignupOtp(saved);
+        return Map.of(
+                "success", true,
+                "message", "User created successfully. OTP sent for phone verification.",
+                "user", saved,
+                "otp", otpResponse
+        );
     }
 
     /**
@@ -108,11 +126,23 @@ public class UserService {
             throw new RuntimeException("User not found");
         }
 
+        if (!Boolean.TRUE.equals(dbUser.getIsPhoneVerified())) {
+            throw new RuntimeException("Phone number not verified. Please complete OTP verification before login.");
+        }
+
         // Generate JWT
         String token = jwtService.generateToken(loginDTO.getUsername());
 
         // Return token + userId
         return new LoginResponse(token, dbUser.getId());
+    }
+
+    public Map<String, Object> verifySignupOtp(String phoneNumber, String otpCode) {
+        return userOtpService.verifySignupOtp(phoneNumber, otpCode);
+    }
+
+    public Map<String, Object> resendSignupOtp(String phoneNumber) {
+        return userOtpService.resendSignupOtp(phoneNumber);
     }
 
 

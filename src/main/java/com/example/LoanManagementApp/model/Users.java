@@ -3,6 +3,7 @@ package com.example.LoanManagementApp.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * Users Entity - Represents system users (employees)
@@ -63,6 +64,13 @@ public class Users {
     @NotNull(message = "Account status cannot be null")
     @Column(nullable = false)
     private Boolean isActive = true;
+
+    @NotNull(message = "Phone verification flag cannot be null")
+    @Column(name = "phone_verified", nullable = false)
+    private Boolean isPhoneVerified = false;
+
+    @Column(name = "phone_verified_at")
+    private LocalDateTime phoneVerifiedAt;
 
     // ==================== CONSTRUCTORS ====================
 
@@ -162,6 +170,22 @@ public class Users {
 
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+
+    public Boolean getIsPhoneVerified() {
+        return isPhoneVerified;
+    }
+
+    public void setIsPhoneVerified(Boolean phoneVerified) {
+        isPhoneVerified = phoneVerified;
+    }
+
+    public LocalDateTime getPhoneVerifiedAt() {
+        return phoneVerifiedAt;
+    }
+
+    public void setPhoneVerifiedAt(LocalDateTime phoneVerifiedAt) {
+        this.phoneVerifiedAt = phoneVerifiedAt;
     }
 
     @Override

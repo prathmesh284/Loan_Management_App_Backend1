@@ -4,10 +4,6 @@ import com.example.LoanManagementApp.model.Customer;
 import com.example.LoanManagementApp.model.CustomerOtpVerification;
 import com.example.LoanManagementApp.repo.CustomerOtpVerificationRepo;
 import com.example.LoanManagementApp.repo.CustomerRepo;
-import com.twilio.Twilio;
-import com.twilio.rest.api.v2010.account.Message;
-import com.twilio.type.PhoneNumber;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,6 +23,7 @@ public class CustomerOtpService {
 
     private final CustomerOtpVerificationRepo otpRepo;
     private final CustomerRepo customerRepo;
+    private final TwilioNotificationService twilioNotificationService;
 
     @Value("${otp.verification.enabled:true}")
     private boolean otpEnabled;
@@ -34,25 +31,14 @@ public class CustomerOtpService {
     @Value("${otp.verification.expiry-minutes:10}")
     private int otpExpiryMinutes;
 
-    @Value("${reminder.twilio.account-sid:}")
-    private String accountSid;
-
-    @Value("${reminder.twilio.auth-token:}")
-    private String authToken;
-
-    @Value("${reminder.twilio.from-number:}")
-    private String fromNumber;
-
-    public CustomerOtpService(CustomerOtpVerificationRepo otpRepo, CustomerRepo customerRepo) {
+    public CustomerOtpService(
+            CustomerOtpVerificationRepo otpRepo,
+            CustomerRepo customerRepo,
+            TwilioNotificationService twilioNotificationService
+    ) {
         this.otpRepo = otpRepo;
         this.customerRepo = customerRepo;
-    }
-
-    @PostConstruct
-    void initializeTwilio() {
-        if (isTwilioConfigured()) {
-            Twilio.init(accountSid, authToken);
-        }
+        this.twilioNotificationService = twilioNotificationService;
     }
 
     @Transactional
@@ -75,7 +61,7 @@ public class CustomerOtpService {
         otpVerification.setExpiresAt(LocalDateTime.now().plusMinutes(otpExpiryMinutes));
         otpRepo.save(otpVerification);
 
-        sendSms(customer.getCustomerId(), buildOtpMessage(customer.getName(), otpCode));
+        twilioNotificationService.sendSms(customer.getCustomerId(), buildOtpMessage(customer.getName(), otpCode));
 
         return Map.of(
                 "success", true,
@@ -116,6 +102,12 @@ public class CustomerOtpService {
         customer.setPhoneVerifiedAt(LocalDateTime.now());
         customerRepo.save(customer);
 
+        twilioNotificationService.sendSms(
+                customer.getCustomerId(),
+                "Welcome " + customer.getName()
+                        + ". Your customer profile has been verified successfully with Gold Loan Management."
+        );
+
         return Map.of(
                 "success", true,
                 "message", "Customer phone verified successfully",
@@ -132,12 +124,17 @@ public class CustomerOtpService {
     }
 
     public boolean verifyCustomerOtpForLoanCreation(String customerId, String otpCode) {
-        if (otpCode == null || otpCode.isBlank()) {
+        try {
+            if (otpCode == null || otpCode.isBlank()) {
+                return false;
+            }
+
+            Map<String, Object> result = verifyCustomerOtp(customerId, otpCode.trim());
+            return Boolean.TRUE.equals(result.get("success"));
+        } catch (Exception e) {
+            log.warn("Customer OTP verification failed for loan creation customerId={}", customerId, e);
             return false;
         }
-
-        Map<String, Object> result = verifyCustomerOtp(customerId, otpCode.trim());
-        return Boolean.TRUE.equals(result.get("success"));
     }
 
     private void expireActiveOtps(String customerId, String purpose) {
@@ -146,26 +143,6 @@ public class CustomerOtpService {
             otp.setConsumed(true);
         }
         otpRepo.saveAll(activeOtps);
-    }
-
-    private void sendSms(String customerId, String messageBody) {
-        if (!otpEnabled) {
-            return;
-        }
-
-        if (!isTwilioConfigured()) {
-            throw new IllegalStateException("Twilio OTP configuration is incomplete");
-        }
-
-        String toNumber = normalizeIndianPhoneNumber(customerId);
-        String from = normalizeTwilioFromNumber();
-        Message.creator(new PhoneNumber(toNumber), new PhoneNumber(from), messageBody).create();
-    }
-
-    private boolean isTwilioConfigured() {
-        return accountSid != null && !accountSid.isBlank()
-                && authToken != null && !authToken.isBlank()
-                && fromNumber != null && !fromNumber.isBlank();
     }
 
     private String buildOtpMessage(String customerName, String otpCode) {
@@ -180,39 +157,5 @@ public class CustomerOtpService {
     private String generateOtp() {
         int otpNumber = 100000 + OTP_RANDOM.nextInt(900000);
         return String.valueOf(otpNumber);
-    }
-
-    private String normalizeIndianPhoneNumber(String phoneNumber) {
-        if (phoneNumber == null) {
-            return "";
-        }
-
-        String digitsOnly = phoneNumber.replaceAll("[^0-9]", "");
-        if (digitsOnly.length() == 10) {
-            return "+91" + digitsOnly;
-        }
-        if (digitsOnly.startsWith("91") && digitsOnly.length() == 12) {
-            return "+" + digitsOnly;
-        }
-        if (phoneNumber.startsWith("+")) {
-            return "+" + digitsOnly;
-        }
-        return "+" + digitsOnly;
-    }
-
-    private String normalizeTwilioFromNumber() {
-        String trimmed = fromNumber == null ? "" : fromNumber.trim();
-        if (trimmed.startsWith("whatsapp:")) {
-            trimmed = trimmed.substring("whatsapp:".length());
-        }
-
-        String digitsOnly = trimmed.replaceAll("[^0-9+]", "");
-        if (digitsOnly.startsWith("+")) {
-            return digitsOnly;
-        }
-        if (digitsOnly.startsWith("91") && digitsOnly.length() == 12) {
-            return "+" + digitsOnly;
-        }
-        return digitsOnly;
     }
 }

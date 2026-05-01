@@ -23,6 +23,7 @@ import com.example.LoanManagementApp.repo.CustomerRepo;
 import com.example.LoanManagementApp.service.CustomerService;
 import com.example.LoanManagementApp.service.LoanRiskAssessmentService;
 import com.example.LoanManagementApp.service.LoanService;
+import com.example.LoanManagementApp.service.TwilioNotificationService;
 import com.example.LoanManagementApp.DTO.LoanRiskAssessmentResult;
 
 @Slf4j
@@ -42,6 +43,9 @@ public class LoanController {
 
     @Autowired
     private CustomerService customerService;
+
+    @Autowired
+    private TwilioNotificationService twilioNotificationService;
 
     // -------------------- CREATE LOAN --------------------
     @PostMapping("/add")
@@ -138,6 +142,7 @@ public class LoanController {
             }
 
             Loan saved = service.createLoan(loan);
+            sendLoanSuccessNotification(customer, saved);
             log.info("Loan created successfully with id={} for customerId={}", saved.getId(), customerId);
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                     "success", true,
@@ -211,5 +216,21 @@ public class LoanController {
             return Integer.parseInt(text.trim());
         }
         throw new IllegalArgumentException("Invalid integer field: " + key + " value=" + value);
+    }
+
+    private void sendLoanSuccessNotification(Customer customer, Loan saved) {
+        try {
+            twilioNotificationService.sendSms(
+                    customer.getCustomerId(),
+                    "Hello " + customer.getName()
+                            + ", your loan #" + saved.getId()
+                            + " has been created successfully. "
+                            + "Loan amount: Rs. " + String.format("%.2f", saved.getLoanAmount())
+                            + ". Next EMI date: " + saved.getNextEmiDate() + "."
+            );
+        } catch (Exception e) {
+            log.warn("Could not send loan success message for customerId={} loanId={}",
+                    customer.getCustomerId(), saved.getId(), e);
+        }
     }
 }
