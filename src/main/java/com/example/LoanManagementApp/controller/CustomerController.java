@@ -151,6 +151,25 @@ public class CustomerController {
         return ResponseEntity.ok(service.getCustomersByBranch(branchId));
     }
 
+    // DELETE CUSTOMER FOR POSTMAN / API CLIENTS
+    @DeleteMapping("/delete/{customerId}")
+    public ResponseEntity<?> deleteCustomerForPostman(@PathVariable String customerId) {
+        try {
+            service.deleteByCustomerId(customerId);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Customer deleted successfully",
+                    "customerId", customerId
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage(),
+                    "customerId", customerId
+            ));
+        }
+    }
+
     // DELETE CUSTOMER
     @DeleteMapping("/{customerId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
