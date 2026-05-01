@@ -4,6 +4,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import com.example.LoanManagementApp.model.Customer;
 import com.example.LoanManagementApp.repo.CustomerRepo;
@@ -66,6 +67,7 @@ public class CustomerService {
         return repo.findByBranchId(branchId);
     }
 	
+	@Transactional
 	public void deleteByCustomerId(String customerId) {
         if (!repo.existsByCustomerId(customerId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
