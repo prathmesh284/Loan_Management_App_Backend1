@@ -126,10 +126,6 @@ public class UserService {
             throw new RuntimeException("User not found");
         }
 
-        if (!Boolean.TRUE.equals(dbUser.getIsPhoneVerified())) {
-            throw new RuntimeException("Phone number not verified. Please complete OTP verification before login.");
-        }
-
         // Generate JWT
         String token = jwtService.generateToken(loginDTO.getUsername());
 
