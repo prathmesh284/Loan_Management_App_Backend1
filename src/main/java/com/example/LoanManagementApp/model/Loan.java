@@ -69,6 +69,9 @@ public class Loan {
     @Column(nullable = false)
     private Double loanAmount;
 
+    @Column(name = "max_eligible_loan")
+    private Double maxEligibleLoan;
+
     @NotNull(message = "EMI cannot be null")
     @DecimalMin(value = "0", message = "EMI cannot be negative")
     @Column(nullable = false)
@@ -120,7 +123,7 @@ public class Loan {
 
     public Loan(Customer customer, String goldPurity, String goldItemType, Double weight, Double goldPrice,
                 Double ltv, Double interestRate, Integer tenure, Double loanAmount,
-                Double emi, Double totalInterest, Double totalAmount) {
+                Double maxEligibleLoan, Double emi, Double totalInterest, Double totalAmount) {
         this.customer = customer;
         this.goldPurity = goldPurity;
         this.goldItemType = goldItemType;
@@ -130,6 +133,7 @@ public class Loan {
         this.interestRate = interestRate;
         this.tenure = tenure;
         this.loanAmount = loanAmount;
+        this.maxEligibleLoan = maxEligibleLoan;
         this.emi = emi;
         this.totalInterest = totalInterest;
         this.totalAmount = totalAmount;
@@ -219,6 +223,14 @@ public class Loan {
 
     public void setLoanAmount(Double loanAmount) {
         this.loanAmount = loanAmount;
+    }
+
+    public Double getMaxEligibleLoan() {
+        return maxEligibleLoan;
+    }
+
+    public void setMaxEligibleLoan(Double maxEligibleLoan) {
+        this.maxEligibleLoan = maxEligibleLoan;
     }
 
     public Double getEmi() {
@@ -326,6 +338,7 @@ public class Loan {
                 ", goldItemType='" + goldItemType + '\'' +
                 ", weight=" + weight +
                 ", loanAmount=" + loanAmount +
+                ", maxEligibleLoan=" + maxEligibleLoan +
                 ", status='" + status + '\'' +
                 '}';
     }

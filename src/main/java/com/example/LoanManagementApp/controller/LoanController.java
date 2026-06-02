@@ -110,6 +110,7 @@ public class LoanController {
             loan.setInterestRate(getDouble(request, "interestRate"));
             loan.setTenure(getInteger(request, "tenure"));
             loan.setLoanAmount(getDouble(request, "loanAmount"));
+            loan.setMaxEligibleLoan(getOptionalDouble(request, "maxEligibleLoan"));
             loan.setEmi(getDouble(request, "emi"));
             loan.setTotalInterest(getDouble(request, "totalInterest"));
             loan.setTotalAmount(getDouble(request, "totalAmount"));
@@ -126,6 +127,15 @@ public class LoanController {
                     riskAssessment.getRecommendedDecision(),
                     riskAssessment.getApprovalProbability()
             );
+
+            if (loan.getMaxEligibleLoan() != null && loan.getLoanAmount() > loan.getMaxEligibleLoan()) {
+                log.warn("Loan creation rejected because requested loan amount {} exceeds max eligible {} for customerId={}",
+                        loan.getLoanAmount(), loan.getMaxEligibleLoan(), customerId);
+                return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of(
+                        "success", false,
+                        "message", "Requested loan amount exceeds maximum eligible loan amount."
+                ));
+            }
 
             if (!riskAssessment.isEligibleForAutoApproval()) {
                 log.warn(
@@ -216,6 +226,20 @@ public class LoanController {
             return Integer.parseInt(text.trim());
         }
         throw new IllegalArgumentException("Invalid integer field: " + key + " value=" + value);
+    }
+
+    private Double getOptionalDouble(Map<String, Object> request, String key) {
+        Object value = request.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            return Double.parseDouble(text.trim());
+        }
+        throw new IllegalArgumentException("Invalid numeric field: " + key + " value=" + value);
     }
 
     private void sendLoanSuccessNotification(Customer customer, Loan saved) {
