@@ -1,14 +1,19 @@
 package com.example.LoanManagementApp.service;
 
 import com.twilio.Twilio;
+import com.twilio.exception.ApiException;
 import com.twilio.rest.api.v2010.account.Message;
 import com.twilio.type.PhoneNumber;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class TwilioNotificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(TwilioNotificationService.class);
 
     @Value("${reminder.twilio.enabled:true}")
     private boolean twilioEnabled;
@@ -31,6 +36,7 @@ public class TwilioNotificationService {
 
     public void sendSms(String phoneNumber, String messageBody) {
         if (!twilioEnabled) {
+            log.warn("Twilio SMS skipped because twilioEnabled=false");
             return;
         }
 
@@ -38,11 +44,30 @@ public class TwilioNotificationService {
             throw new IllegalStateException("Twilio configuration is incomplete");
         }
 
-        Message.creator(
-                new PhoneNumber(normalizeIndianPhoneNumber(phoneNumber)),
-                new PhoneNumber(normalizeTwilioFromNumber()),
-                messageBody
-        ).create();
+        String toNumber = normalizeIndianPhoneNumber(phoneNumber);
+        String fromNumberNormalized = normalizeTwilioFromNumber();
+
+        if (toNumber.isBlank()) {
+            throw new IllegalArgumentException("Invalid destination phone number for Twilio SMS: " + phoneNumber);
+        }
+
+        log.info("Sending Twilio SMS from={} to={} body={}...", fromNumberNormalized, toNumber,
+                messageBody == null ? "<empty>" : messageBody.length() > 80 ? messageBody.substring(0, 80) + "..." : messageBody);
+
+        try {
+            Message.creator(
+                    new PhoneNumber(toNumber),
+                    new PhoneNumber(fromNumberNormalized),
+                    messageBody
+            ).create();
+        } catch (ApiException e) {
+            log.error("Twilio API rejected SMS from={} to={} errorCode={} status={} message={}",
+                    fromNumberNormalized, toNumber, e.getCode(), e.getStatusCode(), e.getMessage(), e);
+            throw e;
+        } catch (Exception e) {
+            log.error("Twilio SMS failed from={} to={} error={}", fromNumberNormalized, toNumber, e.getMessage(), e);
+            throw e;
+        }
     }
 
     public boolean isConfigured() {

@@ -61,7 +61,12 @@ public class CustomerOtpService {
         otpVerification.setExpiresAt(LocalDateTime.now().plusMinutes(otpExpiryMinutes));
         otpRepo.save(otpVerification);
 
-        twilioNotificationService.sendSms(customer.getCustomerId(), buildOtpMessage(customer.getName(), otpCode));
+        try {
+            twilioNotificationService.sendSms(customer.getCustomerId(), buildOtpMessage(customer.getName(), otpCode));
+        } catch (Exception e) {
+            log.error("Failed to send customer OTP for customerId={}", customer.getCustomerId(), e);
+            throw e;
+        }
 
         return Map.of(
                 "success", true,

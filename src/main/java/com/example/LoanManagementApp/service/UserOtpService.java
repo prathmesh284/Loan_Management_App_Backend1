@@ -5,6 +5,7 @@ import com.example.LoanManagementApp.model.UserOtpVerification;
 import com.example.LoanManagementApp.model.Users;
 import com.example.LoanManagementApp.repo.UserOtpVerificationRepo;
 import com.example.LoanManagementApp.repo.UserRepo;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class UserOtpService {
 
@@ -63,15 +65,20 @@ public class UserOtpService {
         otpVerification.setExpiresAt(LocalDateTime.now().plusMinutes(otpExpiryMinutes));
         otpRepo.save(otpVerification);
 
-        twilioNotificationService.sendSms(
-                user.getPhoneNumber(),
-                "Hello " + user.getUsername()
-                        + ", your OTP for staff account verification is "
-                        + otpCode
-                        + ". It is valid for "
-                        + otpExpiryMinutes
-                        + " minutes."
-        );
+        try {
+            twilioNotificationService.sendSms(
+                    user.getPhoneNumber(),
+                    "Hello " + user.getUsername()
+                            + ", your OTP for staff account verification is "
+                            + otpCode
+                            + ". It is valid for "
+                            + otpExpiryMinutes
+                            + " minutes."
+            );
+        } catch (Exception e) {
+            log.error("Failed to send signup OTP for phoneNumber={}", user.getPhoneNumber(), e);
+            throw e;
+        }
 
         return Map.of(
                 "success", true,
