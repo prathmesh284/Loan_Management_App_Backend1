@@ -22,7 +22,7 @@ public class UserSignupDTO {
     private String password;
 
     @NotBlank(message = "Phone number cannot be empty")
-    @Pattern(regexp = "^[6-9]\\d{9}$", message = "Phone number must be a valid 10-digit Indian number")
+    @Pattern(regexp = "^(?:\\+?91[\\s-]*)?[6-9]\\d{9}$", message = "Phone number must be a valid 10-digit Indian number, optionally prefixed with +91 or 91")
     private String phoneNumber;
 
     @NotBlank(message = "Aadhar number cannot be empty")

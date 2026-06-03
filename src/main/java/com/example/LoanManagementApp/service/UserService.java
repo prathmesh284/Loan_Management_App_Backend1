@@ -42,7 +42,10 @@ public class UserService {
      * Converts UserSignupDTO to Users entity and saves to database
      */
     public Map<String, Object> register(UserSignupDTO signupDTO) {
-        // Check if username or email already exists
+        // Normalize phone early and use normalized value for duplicate checks
+        String normalizedPhone = normalizePhone(signupDTO.getPhoneNumber());
+
+        // Check if username or email or phone already exists
         if (repo.findByUsername(signupDTO.getUsername()) != null) {
             throw new RuntimeException("Username already exists");
         }
@@ -51,7 +54,7 @@ public class UserService {
             throw new RuntimeException("Email already registered");
         }
 
-        if (repo.findByPhoneNumber(signupDTO.getPhoneNumber()) != null) {
+        if (repo.findByPhoneNumber(normalizedPhone) != null) {
             throw new RuntimeException("Phone number already registered");
         }
 
@@ -64,7 +67,7 @@ public class UserService {
         user.setUsername(signupDTO.getUsername());
         user.setEmail(signupDTO.getEmail());
         user.setPassword(encoder.encode(signupDTO.getPassword()));
-        user.setPhoneNumber(signupDTO.getPhoneNumber());
+        user.setPhoneNumber(normalizedPhone);
         user.setAdharNumber(signupDTO.getAdharNumber());
         user.setDob(signupDTO.getDob());
         user.setGender(signupDTO.getGender().toUpperCase());
@@ -82,6 +85,20 @@ public class UserService {
                 "user", saved,
                 "otp", otpResponse
         );
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) {
+            throw new RuntimeException("Phone number cannot be null");
+        }
+        String digits = phone.replaceAll("[^0-9]", "");
+        if (digits.length() == 12 && digits.startsWith("91")) {
+            digits = digits.substring(2);
+        }
+        if (digits.length() == 10) {
+            return digits;
+        }
+        throw new RuntimeException("Phone number must be a valid 10-digit Indian number after normalization");
     }
 
     /**
