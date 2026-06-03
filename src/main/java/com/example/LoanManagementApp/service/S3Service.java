@@ -49,6 +49,11 @@ public class S3Service {
         String safeFileName = originalFilename.replaceAll("\\s+", "_");
         String fileName = System.currentTimeMillis() + "_" + safeFileName;
 
+        if (file == null || file.isEmpty()) {
+            log.warn("[S3-UPLOAD] Received empty or null MultipartFile");
+            throw new IllegalArgumentException("Uploaded file is empty or missing.");
+        }
+
         try {
             String detectedContentType = resolveContentType(originalFilename, file.getContentType());
             log.info(

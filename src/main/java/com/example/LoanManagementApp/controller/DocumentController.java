@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,13 +35,13 @@ public class DocumentController {
     @Autowired
     private CustomerRepo customerRepo;
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> upload(
             @RequestParam String customerId,
             @RequestParam String docType,
             @RequestParam(required = false) String customerName,
             @RequestParam(required = false) String docName,
-            @RequestParam MultipartFile file
+            @RequestPart(value = "file", required = false) MultipartFile file
     ) {
         log.info(
                 "[DOC-UPLOAD] Request received: customerId={}, docType={}, docName={}, originalFilename={}, size={} bytes, contentType={}",
@@ -52,31 +53,46 @@ public class DocumentController {
                 file != null ? file.getContentType() : null
         );
 
-        log.info("[DOC-UPLOAD] Looking up customer by customerId={}", customerId);
-        Optional<Customer> customerOpt = customerRepo.findByCustomerId(customerId);
-        if (customerOpt.isEmpty()) {
-            log.warn("[DOC-UPLOAD] Customer not found: {}", customerId);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Customer not found with ID: " + customerId);
+        if (file == null || file.isEmpty()) {
+            log.warn("[DOC-UPLOAD] No file provided or file is empty for customerId={}", customerId);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "A non-empty file must be provided with the 'file' form field."));
         }
 
-        log.info("[DOC-UPLOAD] Customer found: {}", customerOpt.get().getName());
-        log.info("[DOC-UPLOAD] Starting S3 upload for customerId={}", customerId);
-        String url = s3Service.uploadFile(file);
-        log.info("[DOC-UPLOAD] S3 upload completed. URL={}", url);
-        Customer customer = customerOpt.get();
+        try {
+            log.info("[DOC-UPLOAD] Looking up customer by customerId={}", customerId);
+            Optional<Customer> customerOpt = customerRepo.findByCustomerId(customerId);
+            if (customerOpt.isEmpty()) {
+                log.warn("[DOC-UPLOAD] Customer not found: {}", customerId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "Customer not found with ID: " + customerId));
+            }
 
-        Document doc = new Document();
-        doc.setCustomer(customer);
-        doc.setDocType(docType);
-        doc.setDocName((docName != null && !docName.isBlank()) ? docName : file.getOriginalFilename());
-        doc.setS3Url(url);
+            log.info("[DOC-UPLOAD] Customer found: {}", customerOpt.get().getName());
+            log.info("[DOC-UPLOAD] Starting S3 upload for customerId={}", customerId);
+            String url = s3Service.uploadFile(file);
+            log.info("[DOC-UPLOAD] S3 upload completed. URL={}", url);
+            Customer customer = customerOpt.get();
 
-        log.info("[DOC-UPLOAD] Saving document metadata to database for customerId={}", customerId);
-        Document savedDocument = repo.save(doc);
-        log.info("[DOC-UPLOAD] Document saved successfully with id={}", savedDocument.getId());
+            Document doc = new Document();
+            doc.setCustomer(customer);
+            doc.setDocType(docType);
+            doc.setDocName((docName != null && !docName.isBlank()) ? docName : file.getOriginalFilename());
+            doc.setS3Url(url);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(savedDocument));
+            log.info("[DOC-UPLOAD] Saving document metadata to database for customerId={}", customerId);
+            Document savedDocument = repo.save(doc);
+            log.info("[DOC-UPLOAD] Document saved successfully with id={}", savedDocument.getId());
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(savedDocument));
+        } catch (Exception e) {
+            log.error("[DOC-UPLOAD] Error processing upload for customerId={}", customerId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "message", "Document upload failed.",
+                            "error", e.getMessage()
+                    ));
+        }
     }
 
     @PostMapping("/upload-base64")
