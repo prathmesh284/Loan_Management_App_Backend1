@@ -146,8 +146,11 @@ public class UserService {
         // Generate JWT
         String token = jwtService.generateToken(loginDTO.getUsername());
 
-        // Return token + userId
-        return new LoginResponse(token, dbUser.getId());
+        // Return token + branchId for authenticated user
+        if (dbUser.getBranch() == null || dbUser.getBranch().getId() == null) {
+            throw new RuntimeException("Authenticated user does not have an assigned branch");
+        }
+        return new LoginResponse(token, dbUser.getBranch().getId());
     }
 
     public Map<String, Object> verifySignupOtp(String phoneNumber, String otpCode) {
