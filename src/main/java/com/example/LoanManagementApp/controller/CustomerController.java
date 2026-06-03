@@ -147,7 +147,14 @@ public class CustomerController {
     }
 
     @GetMapping("/branch/{branchId}")
-    public ResponseEntity<List<Customer>> getCustomersByBranch(@PathVariable Long branchId) {
+    public ResponseEntity<?> getCustomersByBranch(@PathVariable Long branchId) {
+        Optional<Branch> branchOpt = branchRepo.findById(branchId);
+        if (branchOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "message", "Branch not found with ID: " + branchId
+            ));
+        }
         return ResponseEntity.ok(service.getCustomersByBranch(branchId));
     }
 
