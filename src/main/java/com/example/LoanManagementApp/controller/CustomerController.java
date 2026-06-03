@@ -41,14 +41,38 @@ public class CustomerController {
             // Extract branchId and load the Branch entity
             Object branchIdObj = request.get("branchId");
             if (branchIdObj == null) {
-                return ResponseEntity.badRequest().body("Error: branchId is required");
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Error: branchId is required"
+                ));
             }
-            
-            Long branchId = ((Number) branchIdObj).longValue();
+
+            Long branchId;
+            if (branchIdObj instanceof Number numberValue) {
+                branchId = numberValue.longValue();
+            } else if (branchIdObj instanceof String branchIdStr) {
+                try {
+                    branchId = Long.parseLong(branchIdStr.trim());
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "success", false,
+                            "message", "Error: branchId must be a numeric value"
+                    ));
+                }
+            } else {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Error: branchId must be a numeric value"
+                ));
+            }
+
             Optional<Branch> branchOpt = branchRepo.findById(branchId);
             
             if (branchOpt.isEmpty()) {
-                return ResponseEntity.badRequest().body("Error: Branch not found with ID: " + branchId);
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Error: Branch not found with ID: " + branchId
+                ));
             }
             
             // Create Customer from request

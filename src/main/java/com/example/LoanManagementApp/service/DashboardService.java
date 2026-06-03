@@ -3,6 +3,7 @@ package com.example.LoanManagementApp.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.example.LoanManagementApp.config.ResourceNotFoundException;
 import com.example.LoanManagementApp.model.Branch;
 import com.example.LoanManagementApp.model.Customer;
 import com.example.LoanManagementApp.model.Emi;
@@ -42,7 +43,7 @@ public class DashboardService {
      */
     public Map<String, Object> getDashboardStats(Long branchId) {
         Branch branch = branchRepo.findById(branchId)
-                .orElseThrow(() -> new RuntimeException("Branch not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId));
 
         Map<String, Object> stats = new HashMap<>();
 

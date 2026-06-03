@@ -1,6 +1,7 @@
 package com.example.LoanManagementApp.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.LoanManagementApp.model.Branch;
 import com.example.LoanManagementApp.repo.BranchRepo;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -45,10 +47,20 @@ public class BranchController {
      * @return Branch details
      */
     @GetMapping("/details")
-    public ResponseEntity<?> getBranchById(@RequestParam Long branchId) {
+    public ResponseEntity<?> getBranchById(@RequestParam(required = false) Long branchId) {
+        if (branchId == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "branchId query parameter is required"
+            ));
+        }
+
         Optional<Branch> branch = branchRepo.findById(branchId);
         if (branch.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "message", "Branch not found with ID: " + branchId
+            ));
         }
         return ResponseEntity.ok(branch.get());
     }
