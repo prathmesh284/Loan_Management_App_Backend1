@@ -180,105 +180,72 @@ public class EmiService {
             BigDecimal monthlyEmi = BigDecimal.valueOf(loan.getEmi());
             BigDecimal amount = paymentRequest.getAmount();
 
-            int fullEmisToPay = 0;
-            BigDecimal remainder = BigDecimal.ZERO;
+            // Calculate previous partial payment
+            BigDecimal previousTotalPaid = BigDecimal.valueOf(loan.getPaidAmount());
+            BigDecimal previouslyFullyPaidAmount = monthlyEmi.multiply(BigDecimal.valueOf(loan.getPaidEmis()));
+            BigDecimal existingPartial = previousTotalPaid.subtract(previouslyFullyPaidAmount);
+            if (existingPartial.compareTo(BigDecimal.ZERO) < 0) existingPartial = BigDecimal.ZERO;
 
+            // Calculate new state
+            BigDecimal newTotalPaid = previousTotalPaid.add(amount);
+            BigDecimal newRemainingAmount = BigDecimal.valueOf(loan.getRemainingAmount()).subtract(amount);
+            if (newRemainingAmount.compareTo(BigDecimal.ZERO) < 0) newRemainingAmount = BigDecimal.ZERO;
+
+            int newTotalPaidEmis = loan.getPaidEmis();
             if (monthlyEmi.compareTo(BigDecimal.ZERO) > 0) {
-                fullEmisToPay = amount.divide(monthlyEmi, 0, RoundingMode.DOWN).intValue();
-                remainder = amount.subtract(monthlyEmi.multiply(BigDecimal.valueOf(fullEmisToPay)));
-            } else {
-                // Fallback: treat entire amount as principal reduction
-                remainder = amount;
+                newTotalPaidEmis = newTotalPaid.divide(monthlyEmi, 0, RoundingMode.DOWN).intValue();
+            }
+            if (newTotalPaidEmis > loan.getTotalEmis()) {
+                newTotalPaidEmis = loan.getTotalEmis();
             }
 
-            int appliedPaidEmis = 0;
-            Receipt lastReceipt = null;
+            int appliedPaidEmis = newTotalPaidEmis - loan.getPaidEmis();
 
-            // Apply full EMIs
-            for (int i = 0; i < fullEmisToPay; i++) {
-                // guard: don't overpay beyond remainingEmis
-                if (loan.getRemainingEmis() <= 0) break;
+            // Create ONE Emi record representing the payment transaction
+            Emi emi = new Emi();
+            emi.setLoan(loan);
+            emi.setAmountPaid(amount.doubleValue());
+            emi.setRemainingAmount(newRemainingAmount.doubleValue());
+            emi.setTotalEmis(loan.getTotalEmis());
+            emi.setPaidEmis(newTotalPaidEmis);
+            emi.setRemainingEmis(Math.max(0, loan.getTotalEmis() - newTotalPaidEmis));
+            emi.setPaymentMethod(paymentRequest.getPaymentMethod());
+            emi.setStatus("PAID");
+            emi.setPaymentDate(LocalDate.now());
 
-                Emi emi = new Emi();
-                emi.setLoan(loan);
-                emi.setAmountPaid(monthlyEmi.doubleValue());
+            emi = emiRepository.save(emi);
 
-                double newRemaining = loan.getRemainingAmount() - monthlyEmi.doubleValue();
-                emi.setRemainingAmount(newRemaining < 0 ? 0.0 : newRemaining);
-
-                emi.setTotalEmis(loan.getTotalEmis());
-                emi.setPaidEmis(loan.getPaidEmis() + appliedPaidEmis + 1);
-                emi.setRemainingEmis(loan.getRemainingEmis() - 1);
-                emi.setPaymentMethod(paymentRequest.getPaymentMethod());
-                emi.setStatus("PAID");
-                emi.setPaymentDate(LocalDate.now());
-
-                emi = emiRepository.save(emi);
-
-                // Create receipt for this EMI
-                Receipt receipt = new Receipt(emi, loan, customer, BigDecimal.valueOf(monthlyEmi.doubleValue()),
-                        paymentRequest.getPaymentMethod(), paymentRequest.getPaymentMode());
-                receipt.setReceiptNumber(resolveReceiptNumber(customer, paymentRequest));
-                // Assign transaction id only to the first receipt for this payment (if provided)
-                if (lastReceipt == null && paymentRequest.getPaymentId() != null && !paymentRequest.getPaymentId().isBlank()) {
-                    receipt.setTransactionId(paymentRequest.getPaymentId());
-                }
-                receipt.setStatus("CONFIRMED");
-                receipt.setPaidDate(LocalDateTime.now());
-                receipt.setRemarks(paymentRequest.getRemarks());
-                receipt = receiptRepository.save(receipt);
-                lastReceipt = receipt;
-
-                appliedPaidEmis++;
-
-                // Update loan running totals immediately for safety
-                loan.setPaidAmount(loan.getPaidAmount() + monthlyEmi.doubleValue());
-                loan.setRemainingAmount(Math.max(0.0, loan.getRemainingAmount() - monthlyEmi.doubleValue()));
-                loan.setPaidEmis(loan.getPaidEmis() + 1);
-                loan.setRemainingEmis(Math.max(0, loan.getRemainingEmis() - 1));
+            // Create ONE Receipt
+            Receipt receipt = new Receipt(emi, loan, customer, amount,
+                    paymentRequest.getPaymentMethod(), paymentRequest.getPaymentMode());
+            receipt.setReceiptNumber(resolveReceiptNumber(customer, paymentRequest));
+            if (paymentRequest.getPaymentId() != null && !paymentRequest.getPaymentId().isBlank()) {
+                receipt.setTransactionId(paymentRequest.getPaymentId());
             }
+            receipt.setStatus("CONFIRMED");
+            receipt.setPaidDate(LocalDateTime.now());
+            receipt.setRemarks(paymentRequest.getRemarks());
+            Receipt lastReceipt = receiptRepository.save(receipt);
 
-            // Apply remainder as partial payment towards principal / EMI
-            if (remainder.compareTo(BigDecimal.ZERO) > 0) {
-                // create a partial EMI record (status PENDING) to track partial payments
-                Emi partial = new Emi();
-                partial.setLoan(loan);
-                partial.setAmountPaid(remainder.doubleValue());
-                double newRemaining = loan.getRemainingAmount() - remainder.doubleValue();
-                partial.setRemainingAmount(newRemaining < 0 ? 0.0 : newRemaining);
-                partial.setTotalEmis(loan.getTotalEmis());
-                partial.setPaidEmis(loan.getPaidEmis()); // don't increment as not a full EMI
-                partial.setRemainingEmis(loan.getRemainingEmis());
-                partial.setPaymentMethod(paymentRequest.getPaymentMethod());
-                partial.setStatus("PENDING");
-                partial.setPaymentDate(LocalDate.now());
-
-                partial = emiRepository.save(partial);
-
-                // Receipt for partial payment
-                Receipt pReceipt = new Receipt(partial, loan, customer, remainder,
-                        paymentRequest.getPaymentMethod(), paymentRequest.getPaymentMode());
-                pReceipt.setReceiptNumber(resolveReceiptNumber(customer, paymentRequest));
-                if (lastReceipt == null && paymentRequest.getPaymentId() != null && !paymentRequest.getPaymentId().isBlank()) {
-                    pReceipt.setTransactionId(paymentRequest.getPaymentId());
-                }
-                pReceipt.setStatus("CONFIRMED");
-                pReceipt.setPaidDate(LocalDateTime.now());
-                pReceipt.setRemarks(paymentRequest.getRemarks());
-                lastReceipt = receiptRepository.save(pReceipt);
-
-                // Update loan totals for the partial principal payment
-                loan.setPaidAmount(loan.getPaidAmount() + remainder.doubleValue());
-                loan.setRemainingAmount(Math.max(0.0, loan.getRemainingAmount() - remainder.doubleValue()));
-            }
+            // Update loan
+            loan.setPaidAmount(newTotalPaid.doubleValue());
+            loan.setRemainingAmount(newRemainingAmount.doubleValue());
+            loan.setPaidEmis(newTotalPaidEmis);
+            loan.setRemainingEmis(Math.max(0, loan.getTotalEmis() - newTotalPaidEmis));
 
             // Ensure loan status and next EMI date updated
             if (loan.getRemainingAmount() <= 0) {
                 loan.setStatus("CLOSED");
                 loan.setRemainingAmount(0.0);
                 loan.setRemainingEmis(0);
+                loan.setNextEmiDate(null);
+            } else if (appliedPaidEmis > 0) {
+                LocalDate currentNextEmi = loan.getNextEmiDate();
+                if (currentNextEmi == null) {
+                    currentNextEmi = loan.getLoanDate() != null ? loan.getLoanDate() : LocalDate.now();
+                }
+                loan.setNextEmiDate(currentNextEmi.plusMonths(appliedPaidEmis));
             }
-            loan.setNextEmiDate(LocalDate.now().plusMonths(1));
             loanRepository.save(loan);
 
             // Optionally generate PDF receipt for the last receipt
@@ -360,14 +327,17 @@ public class EmiService {
         loan.setPaidEmis(loan.getPaidEmis() + 1);
         loan.setRemainingEmis(loan.getRemainingEmis() - 1);
 
-        // Set next EMI date
-        LocalDate nextEmiDate = LocalDate.now().plusMonths(1);
-        loan.setNextEmiDate(nextEmiDate);
-
         // Check if loan is fully paid
         if (remainingAmount <= 0) {
             loan.setStatus("CLOSED");
+            loan.setNextEmiDate(null);
             log.info("Loan {} marked as CLOSED", loan.getId());
+        } else {
+            LocalDate currentNextEmi = loan.getNextEmiDate();
+            if (currentNextEmi == null) {
+                currentNextEmi = loan.getLoanDate() != null ? loan.getLoanDate() : LocalDate.now();
+            }
+            loan.setNextEmiDate(currentNextEmi.plusMonths(1));
         }
     }
 
@@ -463,13 +433,32 @@ public class EmiService {
      * Calculate next EMI amount
      */
     private BigDecimal calculateNextEmiAmount(Loan loan) {
-        if (loan.getRemainingEmis() <= 0) {
+        if (loan.getRemainingEmis() <= 0 || loan.getRemainingAmount() <= 0) {
             return BigDecimal.ZERO;
         }
-        return BigDecimal.valueOf(loan.getRemainingAmount()).divide(
-                BigDecimal.valueOf(loan.getRemainingEmis()),
-                2, RoundingMode.HALF_UP
-        );
+        
+        BigDecimal emi = loan.getEmi() != null ? BigDecimal.valueOf(loan.getEmi()) : BigDecimal.ZERO;
+        if (emi.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.valueOf(loan.getRemainingAmount()).divide(
+                    BigDecimal.valueOf(loan.getRemainingEmis()),
+                    2, RoundingMode.HALF_UP
+            );
+        }
+
+        BigDecimal totalPaid = BigDecimal.valueOf(loan.getPaidAmount());
+        BigDecimal fullyPaidEmisAmount = emi.multiply(BigDecimal.valueOf(loan.getPaidEmis()));
+        BigDecimal partialPayment = totalPaid.subtract(fullyPaidEmisAmount);
+        if (partialPayment.compareTo(BigDecimal.ZERO) < 0) partialPayment = BigDecimal.ZERO;
+
+        BigDecimal nextEmiAmount = emi.subtract(partialPayment);
+        if (nextEmiAmount.compareTo(BigDecimal.ZERO) < 0) nextEmiAmount = BigDecimal.ZERO;
+
+        BigDecimal remainingAmount = BigDecimal.valueOf(loan.getRemainingAmount());
+        if (nextEmiAmount.compareTo(remainingAmount) > 0) {
+            return remainingAmount;
+        }
+
+        return nextEmiAmount;
     }
 
     public Emi payEmi(Long loanId, String method) {
@@ -480,20 +469,40 @@ public class EmiService {
         int totalEmis = loan.getTotalEmis();
         int paidEmis = loan.getPaidEmis();
 
-        if (paidEmis >= totalEmis) {
+        if (paidEmis >= totalEmis || loan.getRemainingAmount() <= 0) {
             throw new RuntimeException("Loan already completed");
         }
 
-        double emiAmount = loan.getTotalAmount() / totalEmis;
+        double emiAmount = loan.getEmi() != null && loan.getEmi() > 0 ? loan.getEmi() : (loan.getTotalAmount() / totalEmis);
+
+        if (emiAmount > loan.getRemainingAmount()) {
+            emiAmount = loan.getRemainingAmount();
+        }
 
         paidEmis += 1;
-        int remainingEmis = totalEmis - paidEmis;
+        int remainingEmis = Math.max(0, totalEmis - paidEmis);
 
-        double remainingAmount = loan.getTotalAmount() - emiAmount;
+        double remainingAmount = Math.max(0.0, loan.getRemainingAmount() - emiAmount);
 
         // Update Loan table
         loan.setPaidEmis(paidEmis);
-        loan.setTotalAmount(remainingAmount);
+        loan.setRemainingEmis(remainingEmis);
+        loan.setRemainingAmount(remainingAmount);
+        loan.setPaidAmount(loan.getPaidAmount() + emiAmount);
+
+        if (remainingAmount <= 0 || remainingEmis <= 0) {
+            loan.setStatus("CLOSED");
+            loan.setRemainingAmount(0.0);
+            loan.setRemainingEmis(0);
+            loan.setNextEmiDate(null);
+        } else {
+            LocalDate currentNextEmi = loan.getNextEmiDate();
+            if (currentNextEmi == null) {
+                currentNextEmi = loan.getLoanDate() != null ? loan.getLoanDate() : LocalDate.now();
+            }
+            loan.setNextEmiDate(currentNextEmi.plusMonths(1));
+        }
+
         loanRepository.save(loan);
 
         // Save EMI record
@@ -508,6 +517,7 @@ public class EmiService {
                 LocalDate.now()
         );
 
+        emi.setStatus("PAID");
         return emiRepository.save(emi);
     }
 
@@ -536,6 +546,21 @@ public class EmiService {
         loan.setPaidEmis(currentPaidEmis + 1);
         loan.setRemainingEmis(remainingEmis - 1);
         loan.setRemainingAmount(remainingAmount);
+        loan.setPaidAmount(loan.getPaidAmount() + request.getAmountPaid());
+
+        if (remainingAmount <= 0 || (remainingEmis - 1) <= 0) {
+            loan.setStatus("CLOSED");
+            loan.setRemainingAmount(0.0);
+            loan.setRemainingEmis(0);
+            loan.setNextEmiDate(null);
+        } else {
+            LocalDate currentNextEmi = loan.getNextEmiDate();
+            if (currentNextEmi == null) {
+                currentNextEmi = loan.getLoanDate() != null ? loan.getLoanDate() : LocalDate.now();
+            }
+            loan.setNextEmiDate(currentNextEmi.plusMonths(1));
+        }
+
         loanRepository.save(loan);
 
         // Create EMI record with all required fields

@@ -155,9 +155,18 @@ public class EmiController {
 
             int remainingEmis = loan.getRemainingEmis();
             BigDecimal remainingAmount = BigDecimal.valueOf(loan.getRemainingAmount());
-            BigDecimal monthlyEmi = remainingEmis > 0 ?
-                    remainingAmount.divide(BigDecimal.valueOf(remainingEmis), 2, java.math.RoundingMode.HALF_UP) :
-                    BigDecimal.ZERO;
+            
+            BigDecimal emiAmount = loan.getEmi() != null ? BigDecimal.valueOf(loan.getEmi()) :
+                    (loan.getTotalEmis() > 0 ? BigDecimal.valueOf(loan.getTotalAmount() / loan.getTotalEmis()) : BigDecimal.ZERO);
+
+            BigDecimal totalPaid = BigDecimal.valueOf(loan.getPaidAmount());
+            BigDecimal fullyPaidEmisAmount = emiAmount.multiply(BigDecimal.valueOf(loan.getPaidEmis()));
+            BigDecimal partialPayment = totalPaid.subtract(fullyPaidEmisAmount);
+            if (partialPayment.compareTo(BigDecimal.ZERO) < 0) partialPayment = BigDecimal.ZERO;
+
+            BigDecimal nextEmiDueAmount = emiAmount.subtract(partialPayment);
+            if (nextEmiDueAmount.compareTo(BigDecimal.ZERO) < 0) nextEmiDueAmount = BigDecimal.ZERO;
+            if (nextEmiDueAmount.compareTo(remainingAmount) > 0) nextEmiDueAmount = remainingAmount;
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -165,14 +174,44 @@ public class EmiController {
             response.put("totalEmis", loan.getTotalEmis());
             response.put("paidEmis", loan.getPaidEmis());
             response.put("remainingEmis", remainingEmis);
-            response.put("monthlyEmi", monthlyEmi);
+            response.put("monthlyEmi", emiAmount);
+            response.put("nextEmiAmount", nextEmiDueAmount);
             response.put("totalAmount", loan.getTotalAmount());
             response.put("remainingAmount", remainingAmount);
             response.put("nextEmiDate", loan.getNextEmiDate());
             response.put("status", loan.getStatus());
 
-            // Generate schedule for next 12 months
-            List<Map<String, Object>> schedule = generatePaymentSchedule(loan, monthlyEmi);
+            // Generate schedule for remaining EMIs (up to 12)
+            List<Map<String, Object>> schedule = new java.util.ArrayList<>();
+            LocalDate currentDate = loan.getNextEmiDate() != null ? loan.getNextEmiDate() : LocalDate.now().plusMonths(1);
+            BigDecimal runningRemaining = remainingAmount;
+
+            for (int i = 0; i < Math.min(remainingEmis, 12); i++) {
+                if (runningRemaining.compareTo(BigDecimal.ZERO) <= 0) break;
+
+                Map<String, Object> payment = new HashMap<>();
+                payment.put("emiNumber", loan.getPaidEmis() + i + 1);
+                payment.put("dueDate", currentDate);
+
+                BigDecimal currentDue = (i == 0) ? nextEmiDueAmount : emiAmount;
+                if (currentDue.compareTo(runningRemaining) > 0) {
+                    currentDue = runningRemaining;
+                }
+
+                if (i == 0 && partialPayment.compareTo(BigDecimal.ZERO) > 0) {
+                    payment.put("amount", currentDue);
+                    payment.put("originalAmount", emiAmount);
+                    payment.put("status", "PARTIALLY_PAID");
+                } else {
+                    payment.put("amount", currentDue);
+                    payment.put("status", "PENDING");
+                }
+
+                schedule.add(payment);
+                currentDate = currentDate.plusMonths(1);
+                runningRemaining = runningRemaining.subtract(currentDue);
+            }
+
             response.put("upcomingPayments", schedule);
 
             return ResponseEntity.ok(response);
@@ -304,29 +343,6 @@ public class EmiController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("success", false, "message", e.getMessage()));
         }
-    }
-
-    /**
-     * Generate payment schedule
-     */
-    private List<Map<String, Object>> generatePaymentSchedule(Loan loan, BigDecimal monthlyEmi) {
-        List<Map<String, Object>> schedule = new java.util.ArrayList<>();
-
-        LocalDate currentDate = loan.getNextEmiDate() != null ? loan.getNextEmiDate() : LocalDate.now().plusMonths(1);
-        int remainingEmis = loan.getRemainingEmis();
-
-        for (int i = 0; i < Math.min(remainingEmis, 12); i++) {
-            Map<String, Object> payment = new HashMap<>();
-            payment.put("emiNumber", loan.getPaidEmis() + i + 1);
-            payment.put("dueDate", currentDate);
-            payment.put("amount", monthlyEmi);
-            payment.put("status", "PENDING");
-
-            schedule.add(payment);
-            currentDate = currentDate.plusMonths(1);
-        }
-
-        return schedule;
     }
 
     /**
